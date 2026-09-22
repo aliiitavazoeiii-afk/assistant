@@ -1,0 +1,23 @@
+# Android
+.gradle/
+local.properties
+**/build/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Secrets
+.env
+server/.env
+*.keystore
+*.jks
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

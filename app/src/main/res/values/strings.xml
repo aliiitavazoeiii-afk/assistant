@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Assistant</string>
+    <string name="accessibility_description">Allows your private assistant to inspect visible accessibility nodes and perform taps, text entry, scrolling, and navigation on your behalf.</string>
+</resources>
