@@ -55,9 +55,9 @@ class MainActivity : ComponentActivity() {
             if (vm.lastAssistantText.isNotBlank()) Text("دستیار: ${vm.lastAssistantText}")
             Spacer(Modifier.height(8.dp)); Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button(onClick = { vm.setServerUrl(url) }) { Text("ذخیره آدرس سرور") }
+            Button(onClick = { vm.saveServerUrl(url) }) { Text("ذخیره آدرس سرور") }
             OutlinedTextField(value = appToken, onValueChange = { appToken = it }, label = { Text("App connection token") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button(onClick = { vm.setAppToken(appToken) }) { Text("ذخیره توکن اتصال") }
+            Button(onClick = { vm.saveAppToken(appToken) }) { Text("ذخیره توکن اتصال") }
             Button(onClick = { permissionLauncher.launch(runtimePermissions()) }) { Text("دادن Permissionهای پایه") }
             Button(onClick = { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("فعال‌کردن Notification Access") }
             Button(onClick = { requestExactAlarmAccess() }) { Text("اجازه Exact Alarm") }
