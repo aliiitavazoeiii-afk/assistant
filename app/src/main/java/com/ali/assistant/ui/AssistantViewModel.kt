@@ -27,8 +27,8 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
     var busy by mutableStateOf(false); private set
     var serverUrl by mutableStateOf(api.serverUrl()); private set
     var appToken by mutableStateOf(api.appToken()); private set
-    fun setServerUrl(value: String) { serverUrl = value; api.setServerUrl(value); status = "آدرس سرور ذخیره شد" }
-    fun setAppToken(value: String) { appToken = value; api.setAppToken(value); status = "توکن اتصال ذخیره شد" }
+    fun saveServerUrl(value: String) { serverUrl = value; api.setServerUrl(value); status = "آدرس سرور ذخیره شد" }
+    fun saveAppToken(value: String) { appToken = value; api.setAppToken(value); status = "توکن اتصال ذخیره شد" }
     fun submit(text: String) {
         val clean = text.trim(); if (clean.isBlank() || busy) return
         lastUserText = clean; busy = true; status = "دارم فکر می‌کنم…"
