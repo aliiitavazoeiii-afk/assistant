@@ -12,8 +12,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Syntax check
-        run: node --check server/server.mjs
+      - name: Syntax check Node control plane
+        run: find server -name '*.mjs' -print0 | xargs -0 -n1 node --check
+      - name: Shell syntax
+        run: bash -n server/install.sh node-agent/install.sh
+
+  node-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Python syntax
+        run: python -m py_compile node-agent/agent.py node-agent/adapters/vpn_json.py
 
   android:
     runs-on: ubuntu-latest
