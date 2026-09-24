@@ -8,15 +8,22 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Secrets
+# Secrets / runtime configuration
 .env
 server/.env
+node-agent/.env
+server/config/nodes.json
+server/config/integrations.json
+node-agent/config.json
+server/data/
 *.keystore
 *.jks
 
-# Node
+# Node / Python
 node_modules/
 npm-debug.log*
+__pycache__/
+*.pyc
 
 # OS
 .DS_Store
