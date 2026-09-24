@@ -1,0 +1,4 @@
+{
+  "services": ["docker", "caddy", "xray"],
+  "vpnAdapter": ["/opt/assistant/node-agent/adapters/vpn_json.py"]
+}
