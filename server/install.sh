@@ -8,6 +8,7 @@ command -v node >/dev/null || { echo "Node.js 22+ is required."; exit 1; }
 NODE_MAJOR="$(node -p 'process.versions.node.split(`.`)[0]')"
 [[ "$NODE_MAJOR" -ge 22 ]] || { echo "Node.js 22+ is required; found $(node -v)"; exit 1; }
 
+id assistant >/dev/null 2>&1 || useradd --system --home "$ROOT" --shell /usr/sbin/nologin assistant
 if [[ ! -f "$SERVER/.env" ]]; then
   cp "$SERVER/.env.example" "$SERVER/.env"
   TOKEN="$(openssl rand -hex 32)"
@@ -20,8 +21,7 @@ fi
 [[ -f "$SERVER/config/integrations.json" ]] || cp "$SERVER/config/integrations.example.json" "$SERVER/config/integrations.json"
 mkdir -p "$SERVER/data"
 [[ -f "$SERVER/data/automations.json" ]] || cp "$SERVER/config/automations.example.json" "$SERVER/data/automations.json"
-
-id assistant >/dev/null 2>&1 || useradd --system --home "$ROOT" --shell /usr/sbin/nologin assistant
+chown assistant:assistant "$SERVER/.env"
 chown -R assistant:assistant "$SERVER/data"
 chmod 600 "$SERVER/.env"
 
