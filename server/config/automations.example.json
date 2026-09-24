@@ -1,0 +1,21 @@
+[
+  {
+    "id": "hourly-node-health",
+    "name": "Hourly node health",
+    "type": "node_health",
+    "enabled": true,
+    "nodeIds": [],
+    "schedule": { "intervalMinutes": 60 }
+  },
+  {
+    "id": "daily-vpn-expiry",
+    "name": "Daily VPN expiry reminder",
+    "type": "vpn_expiry",
+    "enabled": false,
+    "nodeIds": ["vpn-1"],
+    "daysAhead": 0,
+    "sendMessages": false,
+    "messageTemplate": "سلام {name}، اعتبار سرویس شما در {expiresAt} به پایان می‌رسد. برای تمدید لطفاً اقدام کنید.",
+    "schedule": { "dailyTime": "10:00", "timeZone": "Asia/Tehran" }
+  }
+]
