@@ -17,13 +17,27 @@ export class AutomationEngine {
     finally { this.running.delete(id); }
   }
   async nodeHealth(rule) { const ids = rule.nodeIds?.length ? rule.nodeIds : this.nodes.list().map(x => x.id); const out=[]; for (const id of ids) { try { out.push({ nodeId:id, ok:true, data:await this.nodes.call(id,'status',{}) }); } catch(e) { out.push({ nodeId:id, ok:false, error:e.message }); } } return out; }
-  async vpnExpiry(rule) { const daysAhead=Number(rule.daysAhead ?? 0), out=[]; for (const id of rule.nodeIds || []) { try { const data=await this.nodes.call(id,'vpn_expiring',{daysAhead}), users=data.users || data.result?.users || []; const sent=rule.sendMessages ? await this.sendRenewals(users,rule.messageTemplate) : []; out.push({nodeId:id,ok:true,users,sent}); } catch(e) { out.push({nodeId:id,ok:false,error:e.message}); } } return out; }
+  async vpnExpiry(rule) { const daysAhead=Number(rule.daysAhead ?? 0), out=[]; for (const id of rule.nodeIds || []) { try { const data=await this.nodes.call(id,'vpn_expiring',{daysAhead}), users=data.users || data.result?.users || []; const sent=rule.sendMessages ? await this.sendRenewals(users,rule.messageTemplate,rule.id) : []; out.push({nodeId:id,ok:true,users,sent}); } catch(e) { out.push({nodeId:id,ok:false,error:e.message}); } } return out; }
   async integrationSnapshot(rule) { return this.integrations.call(rule.integration, rule.operation, rule.params || {}); }
-  async sendRenewals(users, template) {
+  async sendRenewals(users, template, ruleId) {
     if (String(process.env.ASSISTANT_ALLOW_MESSAGES || '').toLowerCase() !== 'true') return users.map(u => ({ id:u.id, skipped:'ASSISTANT_ALLOW_MESSAGES is not true' }));
     const webhook=process.env.ASSISTANT_MESSAGE_WEBHOOK; if (!webhook) return users.map(u => ({ id:u.id, skipped:'message webhook not configured' }));
-    const results=[]; for (const u of users) { if (!u.recipient) { results.push({id:u.id,skipped:'no recipient'}); continue; } const message=render(template || 'سلام {name}، اعتبار سرویس شما در {expiresAt} به پایان می‌رسد. برای تمدید لطفاً اقدام کنید.',u); try { const headers={'Content-Type':'application/json'}, token=process.env.ASSISTANT_MESSAGE_WEBHOOK_TOKEN; if(token) headers.Authorization=`Bearer ${token}`; const r=await fetch(webhook,{method:'POST',headers,body:JSON.stringify({recipient:u.recipient,message,user:u})}); if(!r.ok) throw new Error(`webhook ${r.status}: ${await r.text()}`); results.push({id:u.id,recipient:u.recipient,ok:true}); } catch(e) { results.push({id:u.id,recipient:u.recipient,ok:false,error:e.message}); } } return results;
+    const results=[];
+    for (const u of users) {
+      if (!u.recipient) { results.push({id:u.id,skipped:'no recipient'}); continue; }
+      const dedupKey=`${ruleId}:${u.id}:${u.expiresAt}`;
+      if (this.store.messageWasSent(dedupKey)) { results.push({id:u.id,recipient:u.recipient,skipped:'already-sent'}); continue; }
+      const message=render(template || 'سلام {name}، اعتبار سرویس شما در {expiresAt} به پایان می‌رسد. برای تمدید لطفاً اقدام کنید.',u);
+      try {
+        const headers={'Content-Type':'application/json'}, token=process.env.ASSISTANT_MESSAGE_WEBHOOK_TOKEN; if(token) headers.Authorization=`Bearer ${token}`;
+        const r=await fetch(webhook,{method:'POST',headers,body:JSON.stringify({recipient:u.recipient,message,user:u})}); if(!r.ok) throw new Error(`webhook ${r.status}: ${await r.text()}`);
+        this.store.markMessageSent(dedupKey,{ruleId,userId:u.id,recipient:u.recipient,expiresAt:u.expiresAt});
+        results.push({id:u.id,recipient:u.recipient,ok:true});
+      } catch(e) { results.push({id:u.id,recipient:u.recipient,ok:false,error:e.message}); }
+    }
+    return results;
   }
 }
 function render(t,data){return String(t).replace(/\{([A-Za-z0-9_]+)\}/g,(_,k)=>String(data[k]??''));}
-function isDue(rule,now){const last=rule.lastRunAt?new Date(rule.lastRunAt):null,s=rule.schedule||{};if(s.intervalMinutes)return !last||now-last>=Number(s.intervalMinutes)*60_000;if(s.dailyTime){const tz=s.timeZone||process.env.ASSISTANT_TIMEZONE||'UTC',parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value])),key=`${parts.year}-${parts.month}-${parts.day}`,hm=`${parts.hour}:${parts.minute}`,lastKey=last?Object.values(Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(last).filter(p=>['year','month','day'].includes(p.type)).map(p=>[p.type,p.value]))).join('-'):'';return hm>=s.dailyTime&&lastKey!==key;}return false;}
+function dateKey(date,tz){const parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).filter(p=>['year','month','day'].includes(p.type)).map(p=>[p.type,p.value]));return `${parts.year}-${parts.month}-${parts.day}`;}
+function isDue(rule,now){const last=rule.lastRunAt?new Date(rule.lastRunAt):null,s=rule.schedule||{};if(s.intervalMinutes)return !last||now-last>=Number(s.intervalMinutes)*60_000;if(s.dailyTime){const tz=s.timeZone||process.env.ASSISTANT_TIMEZONE||'UTC',parts=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:tz,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now).map(p=>[p.type,p.value])),hm=`${parts.hour}:${parts.minute}`;return hm>=s.dailyTime&&(!last||dateKey(last,tz)!==dateKey(now,tz));}return false;}
