@@ -41,11 +41,15 @@ class MainActivity : ComponentActivity() {
         intent.removeExtra("hotword_command"); intent.removeExtra("auto_listen")
     }
     private fun beginListening() { speech.listen(onState = vm::setListeningStatus, onResult = vm::submit, onError = vm::setListeningStatus) }
+
     @Composable private fun AssistantScreen(vm: AssistantViewModel) {
         var command by remember { mutableStateOf("") }; var url by remember { mutableStateOf(vm.serverUrl) }; var appToken by remember { mutableStateOf(vm.appToken) }
         val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+        vm.pendingConfirmation?.let { pending ->
+            AlertDialog(onDismissRequest = { }, title = { Text(pending.title) }, text = { Text(pending.detail) }, confirmButton = { Button(onClick = { vm.resolveConfirmation(true) }) { Text("تأیید و اجرا") } }, dismissButton = { TextButton(onClick = { vm.resolveConfirmation(false) }) { Text("لغو") } })
+        }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Assistant", style = MaterialTheme.typography.headlineLarge); Text(vm.status, style = MaterialTheme.typography.bodyMedium)
+            Text("Assistant", style = MaterialTheme.typography.headlineLarge); Text("v0.2 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(value = command, onValueChange = { command = it }, label = { Text("دستور") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = { beginListening() }, enabled = !vm.busy) { Icon(Icons.Default.Mic, contentDescription = null); Text(" صحبت") }
@@ -54,10 +58,10 @@ class MainActivity : ComponentActivity() {
             if (vm.lastUserText.isNotBlank()) Text("تو: ${vm.lastUserText}")
             if (vm.lastAssistantText.isNotBlank()) Text("دستیار: ${vm.lastAssistantText}")
             Spacer(Modifier.height(8.dp)); Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL (HTTPS برای استفاده واقعی)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Button(onClick = { vm.saveServerUrl(url) }) { Text("ذخیره آدرس سرور") }
             OutlinedTextField(value = appToken, onValueChange = { appToken = it }, label = { Text("App connection token") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button(onClick = { vm.saveAppToken(appToken) }) { Text("ذخیره توکن اتصال") }
+            Button(onClick = { vm.saveAppToken(appToken) }) { Text("ذخیره امن توکن اتصال") }
             Button(onClick = { permissionLauncher.launch(runtimePermissions()) }) { Text("دادن Permissionهای پایه") }
             Button(onClick = { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("فعال‌کردن Notification Access") }
             Button(onClick = { requestExactAlarmAccess() }) { Text("اجازه Exact Alarm") }
@@ -65,7 +69,7 @@ class MainActivity : ComponentActivity() {
                 Button(onClick = { ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, HotwordService::class.java)) }) { Text("روشن‌کردن Wake Word") }
                 Button(onClick = { stopService(Intent(this@MainActivity, HotwordService::class.java)) }) { Text("خاموش‌کردن") }
             }
-            Text("Wake Word آزمایشی است و به SpeechRecognizer دستگاه و محدودیت‌های باتری سازنده گوشی وابسته است.")
+            Text("تماس و SMS قبل از اجرا روی خود گوشی تأیید می‌خواهند. Wake Word هنوز آزمایشی است.")
         }
     }
     private fun runtimePermissions(): Array<String> = buildList {
