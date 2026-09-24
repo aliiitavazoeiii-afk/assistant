@@ -1,39 +1,78 @@
 # Assistant
 
-Personal Android AI agent with Persian-first voice interaction, local device actions, alarms/reminders, notes, SMS/contacts, maps, notifications, and a private OpenAI-backed tool loop.
+Ali's private Persian-first Android personal operations agent.
 
 ## Repository layout
 
 - `app/` — Android app (Kotlin + Jetpack Compose)
-- `server/` — lightweight Node.js backend that calls the OpenAI Responses API
-- `docs/` — architecture, setup, permissions, and security notes
+- `server/` — Node.js 22 OpenAI/control-plane backend
+- `node-agent/` — optional read-only Linux/VPN monitoring node
+- `docs/` — architecture, setup, operations runbook and continuation history
 
-## Core capabilities
+## v0.2 capabilities
 
-- Persian speech input and spoken responses
-- Structured local memory for ideas/notes
-- Exact alarms and spoken reminders
-- Strict alarm mode with a fresh-selfie challenge
-- Optional local music lookup for alarm sounds
-- Call contacts and send/read SMS (with user-granted permissions)
-- Read recent notifications after Notification Access is enabled
-- Open Google Maps/navigation and arbitrary installed apps
-- Iterative tool-calling loop for multi-step device actions
-- Optional experimental hotword foreground service
-- OpenAI key stays on the server; it is never embedded in the APK
+### Android
 
-Cross-app UI automation is kept as a separate optional adapter. The executable Android `AccessibilityService` controller is not included in this connector-pushed build.
+- Persian speech input and local spoken responses
+- local notes/ideas
+- exact alarms and spoken reminders
+- strict fresh-selfie alarm challenge
+- contacts, calls and SMS
+- recent notification access
+- location, Google Maps and installed-app launching
+- experimental wake word
+- explicit local confirmation before call/SMS execution
+- Android Keystore-backed app connection token
+- persistent session ID for multi-turn server context
 
-## Quick start
+### Control plane
 
-1. Read `docs/SETUP.md`.
-2. Create an OpenAI API key and configure `server/.env` from `server/.env.example`.
-3. Run the server with Node 22+.
-4. Open the repository in Android Studio, build/install the `app` module, and set the server URL in the app.
-5. Grant only the permissions/features you want.
+- OpenAI Responses API with server-side tool loop
+- durable private memory
+- tasks and measurable goals
+- named/allowlisted HTTP integrations for business systems
+- read-only monitoring nodes for server health/service logs
+- VPN-expiry adapter contract
+- deterministic automations and reports
+- optional renewal-message webhook with duplicate prevention
+- append-only audit events
 
-## Current implementation notes
+## Security model
 
-This repository is designed for a privately-installed personal assistant. Some SMS/call capabilities are restricted by Google Play policy even when Android itself can grant them to a sideloaded app. OEM battery/background restrictions can affect hotword and alarm reliability, so device-specific testing is required.
+- OpenAI API key stays only on the central backend.
+- Monitoring nodes are read-only and expose no arbitrary shell endpoint.
+- Android calls/SMS require local confirmation.
+- Integration writes, automation changes and outbound messages are disabled by environment gates until explicitly enabled.
+- Retrieved notifications/SMS/logs/integration responses are treated as untrusted data, not model instructions.
+- Payment, banking, OTP/password entry and authentication remain manual.
 
-The app uses Android speech recognition + local TTS for the first production path. The server is separated cleanly so OpenAI Realtime voice can replace the audio layer later without changing the device tool layer.
+## Install now, add OpenAI later
+
+The central backend can be installed before your OpenAI API balance/key is ready:
+
+```bash
+sudo bash server/install.sh
+curl http://127.0.0.1:8787/health
+```
+
+The installer generates the separate `ASSISTANT_APP_TOKEN`. `OPENAI_API_KEY` can remain empty; AI requests return a clear 503 until it is added.
+
+When the API key is ready:
+
+```bash
+sudo nano server/.env
+# OPENAI_API_KEY=sk-...
+sudo systemctl restart assistant
+```
+
+Optional read-only monitoring node:
+
+```bash
+sudo bash node-agent/install.sh
+```
+
+Read `docs/OPS_CONTROL_PLANE.md` before exposing any node remotely.
+
+## Model defaults
+
+v0.2 defaults to `gpt-5.6-luna` with `low` reasoning effort for low-cost routine operation. Both are configurable in `server/.env`.
