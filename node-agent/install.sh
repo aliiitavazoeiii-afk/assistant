@@ -18,7 +18,7 @@ fi
 [[ -f "$AGENT/config.json" ]] || cp "$AGENT/config.example.json" "$AGENT/config.json"
 mkdir -p /etc/assistant-node
 if [[ ! -f /etc/assistant-node/vpn-users.json ]]; then printf '{"users":[]}\n' >/etc/assistant-node/vpn-users.json; fi
-chown assistant-node:assistant-node /etc/assistant-node/vpn-users.json
+chown assistant-node:assistant-node "$AGENT/.env" /etc/assistant-node/vpn-users.json
 chmod 600 "$AGENT/.env" /etc/assistant-node/vpn-users.json
 
 cat >/etc/systemd/system/assistant-node.service <<UNIT
