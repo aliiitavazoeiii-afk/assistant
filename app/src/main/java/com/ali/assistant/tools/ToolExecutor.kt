@@ -16,6 +16,16 @@ class ToolExecutor(private val context: Context) {
     private val alarmScheduler = AlarmScheduler(context)
     private val contactsSms = ContactsSmsTools(context)
     private val device = DeviceTools(context)
+
+    fun confirmationMessage(call: ToolCall): String? = runCatching {
+        val a = JSONObject(call.argumentsJson.ifBlank { "{}" })
+        when (call.name) {
+            "send_sms" -> "ارسال پیامک به ${a.optString("recipient")}:\n${a.optString("message")}"
+            "call_contact" -> "تماس با ${a.optString("name")}?"
+            else -> null
+        }
+    }.getOrNull()
+
     fun execute(call: ToolCall): ToolOutput {
         val output = runCatching {
             val a = JSONObject(call.argumentsJson.ifBlank { "{}" })
@@ -31,9 +41,9 @@ class ToolExecutor(private val context: Context) {
                 "get_current_location" -> device.currentLocation()
                 "open_app" -> device.openApp(a.getString("name"))
                 "recent_notifications" -> AssistantNotificationListener.recent(context, a.optString("query").takeIf { it.isNotBlank() }, a.optInt("limit", 40))
-                else -> throw IllegalArgumentException("Unknown tool: ${call.name}")
+                else -> throw IllegalArgumentException("Unknown device tool: ${call.name}")
             }
-        }.fold(onSuccess = { value -> JSONObject().put("success", true).put("result", value).toString() }, onFailure = { e -> JSONObject().put("success", false).put("error", e.message ?: e.javaClass.simpleName).toString() })
+        }.fold(onSuccess = { JSONObject().put("success", true).put("result", it).toString() }, onFailure = { JSONObject().put("success", false).put("error", it.message ?: it.javaClass.simpleName).toString() })
         return ToolOutput(call.callId, output)
     }
 }
