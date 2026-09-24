@@ -2,46 +2,64 @@
 
 ## Goal
 
-A Persian-first personal agent that can understand natural language, keep local personal notes, schedule reliable alarms/reminders, and perform user-authorized actions on Android.
+A Persian-first private personal operations agent: natural-language interaction on Android, reliable local phone actions, durable context, deterministic automations, business integrations and safe infrastructure visibility.
 
-## Components
+## Android client
 
-### Android app
+- `AssistantViewModel` — conversation/device-tool loop and confirmation coordinator
+- `AssistantApi` — authenticated backend client with persistent session ID
+- `SecureSecretStore` — Android Keystore protection for the app connection token
+- `ToolExecutor` — maps device function calls to local Android actions
+- `AssistantDb` — local notes and schedules
+- `AlarmScheduler`, `AlarmSoundService`, `AlarmActivity`, `ReminderService` — exact local alarms/reminders
+- `ContactsSmsTools` — contacts/call/SMS; calls and SMS require a local confirmation dialog
+- `DeviceTools` — Maps, installed apps and device location
+- `AssistantNotificationListener` — bounded local notification cache
+- `HotwordService` — experimental wake-word path
 
-- `AssistantViewModel` — conversation/tool loop coordinator
-- `AssistantApi` — HTTPS client to the private backend
-- `ToolExecutor` — maps model tool calls to Android actions
-- `AssistantDb` — local SQLite storage for notes and schedules
-- `AlarmScheduler` — exact alarms backed by `AlarmManager`
-- `AlarmSoundService` / `AlarmActivity` — wake-up UI/audio and strict challenge
-- `ReminderService` — spoken reminders
-- `ContactsSmsTools` — contacts, phone calls, SMS
-- `DeviceTools` — Maps, installed apps, location
-- `AssistantNotificationListener` — bounded local cache of recent notifications
-- `HotwordService` — experimental continuously restarted Android speech recognizer
-- Cross-app UI automation is an optional adapter boundary; its executable AccessibilityService controller is not included in this connector-pushed build.
+## Central backend
 
-### Backend
+`server/server.mjs` is the single OpenAI gateway and control plane. The OpenAI API key never ships to Android or monitoring nodes.
 
-`server/server.mjs` keeps the OpenAI API key off the phone. The phone sends a user request and device context. The server calls the Responses API with function tools and returns tool calls to Android. Android executes them locally and returns tool outputs. The server continues the same response using `previous_response_id` until the model produces a final reply.
+It provides:
 
-## Security boundary
+- OpenAI Responses API tool loop
+- per-install Android session mapped to `previous_response_id` for multi-turn context
+- durable private memory, tasks and goals
+- named allowlisted business integrations
+- automation scheduler, reports and audit events
+- signed queries to optional read-only Linux monitoring nodes
 
-The OpenAI API key never ships in the APK. Payment and authentication entry should remain manual. The agent prompt explicitly excludes payment/authentication secrets.
+Server-side tools are executed by the backend. Device tools are returned to Android for local execution; their tool outputs are then continued through the same Responses API response chain.
 
-## Privacy model
+## Monitoring nodes
 
-Notes remain local until the user asks for them. SMS and notification access follow the same local-query model: only requested results are returned to the model.
+`node-agent/agent.py` is deliberately read-only. Requests are HMAC-signed with a per-node secret and timestamp. Supported operations are fixed in code: health status, allowlisted service status/logs and VPN-expiry adapter queries. There is no arbitrary command/shell or generic write endpoint.
 
-## Reliability model
+Write actions against servers/business systems should be exposed as explicit application APIs and registered as named integration operations. Non-read integration operations stay disabled unless the owner enables the write gate.
 
-Alarms/reminders are scheduled locally and do not depend on OpenAI being reachable at trigger time.
+## Automation model
+
+Deterministic routines run without OpenAI when possible. v0.2 rule types:
+
+- node health polling
+- VPN-expiry collection and optional renewal-message webhook
+- configured integration snapshots
+
+Outbound messages require explicit enablement and successful sends are deduplicated.
+
+## Trust boundaries
+
+- Retrieved SMS, notifications, logs, memories, webhooks and integration data are untrusted data, not instructions.
+- Phone calls/SMS require local approval.
+- OpenAI/API credentials stay server-side.
+- Monitoring nodes are read-only.
+- Payment, banking, authentication, OTP/password entry remain manual.
 
 ## Known platform constraints
 
-- A normal Android app cannot make itself literally impossible to force-stop, uninstall, or defeat by powering off the phone.
-- Exact alarms require special access on modern Android versions.
-- Full-screen alarm behavior and background launching vary by OEM configuration.
-- Cross-app UI control is intentionally isolated as an optional future adapter and is not part of this connector-pushed build.
-- Continuous hotword listening through `SpeechRecognizer` is experimental and OEM-dependent.
-- Google Play has policy restrictions around SMS/call permissions. This repository is intended first for private sideloading.
+- Android exact alarms/full-screen behavior varies by OEM and requires special access.
+- Continuous `SpeechRecognizer` wake-word listening remains experimental.
+- Google Play restricts some SMS/call permission use; private sideloading is the first target.
+- Cross-app Accessibility automation is an optional future adapter, not part of v0.2.
+- VPN panel-specific integration requires the exact panel/API/database contract.
