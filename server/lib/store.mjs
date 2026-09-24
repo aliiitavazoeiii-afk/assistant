@@ -21,6 +21,8 @@ export class JsonStore {
   saveAutomation(rule) { const all = this.listAutomations(); const now = new Date().toISOString(); const item = { id: rule.id || crypto.randomUUID(), enabled: true, createdAt: rule.createdAt || now, ...rule, updatedAt: now }; const i = all.findIndex(x => x.id === item.id); if (i >= 0) all[i] = item; else all.push(item); this.write('automations.json', all); return item; }
   addReport(report) { const all = this.read('reports.json', []); const item = { id: crypto.randomUUID(), at: new Date().toISOString(), ...report }; all.unshift(item); this.write('reports.json', all.slice(0, 1000)); return item; }
   listReports(limit = 50) { return this.read('reports.json', []).slice(0, Math.max(1, Math.min(200, limit))); }
+  messageWasSent(key) { return Boolean(this.read('sent-messages.json', {})[key]); }
+  markMessageSent(key, data = {}) { const all = this.read('sent-messages.json', {}); all[key] = { at:new Date().toISOString(), ...data }; const entries = Object.entries(all).slice(-10000); this.write('sent-messages.json', Object.fromEntries(entries)); }
   audit(event, data = {}) { this.appendJsonl('audit.jsonl', { at: new Date().toISOString(), event, ...data }); }
   recentAudit(limit = 50) { try { return fs.readFileSync(this.file('audit.jsonl'), 'utf8').trim().split('\n').filter(Boolean).slice(-limit).reverse().map(x => JSON.parse(x)); } catch { return []; } }
 }
