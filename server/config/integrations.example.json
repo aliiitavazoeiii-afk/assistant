@@ -1,0 +1,20 @@
+{
+  "integrations": {
+    "darma": {
+      "baseUrl": "https://example.internal/",
+      "tokenEnv": "DARMA_API_TOKEN",
+      "operations": {
+        "daily_sales": { "method": "GET", "path": "/api/assistant/daily-sales", "risk": "read" },
+        "inventory": { "method": "GET", "path": "/api/assistant/inventory", "risk": "read" }
+      }
+    },
+    "expense": {
+      "baseUrl": "https://example.internal/",
+      "tokenEnv": "EXPENSE_API_TOKEN",
+      "operations": {
+        "today": { "method": "GET", "path": "/api/assistant/today", "risk": "read" },
+        "month": { "method": "GET", "path": "/api/assistant/month", "risk": "read" }
+      }
+    }
+  }
+}
