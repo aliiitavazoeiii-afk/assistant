@@ -8,10 +8,12 @@ import java.io.File
 class AudioReplyPlayer(private val context: Context) {
     private var player: MediaPlayer? = null
     private var currentFile: File? = null
+    private var onFinished: (() -> Unit)? = null
 
-    fun play(mp3: ByteArray): Boolean {
+    fun play(mp3: ByteArray, onFinished: (() -> Unit)? = null): Boolean {
         if (mp3.isEmpty()) return false
-        stop()
+        stop(invokeCallback = false)
+        this.onFinished = onFinished
         return runCatching {
             val file = File.createTempFile("assistant-reply-", ".mp3", context.cacheDir)
             file.writeBytes(mp3)
@@ -24,19 +26,21 @@ class AudioReplyPlayer(private val context: Context) {
             )
             p.setDataSource(file.absolutePath)
             p.setOnPreparedListener { it.start() }
-            p.setOnCompletionListener { cleanup(it, file) }
-            p.setOnErrorListener { mp, _, _ -> cleanup(mp, file); true }
+            p.setOnCompletionListener { finish(it, file) }
+            p.setOnErrorListener { mp, _, _ -> finish(mp, file); true }
             player = p
             currentFile = file
             p.prepareAsync()
             true
         }.getOrElse {
-            stop()
+            stop(invokeCallback = true)
             false
         }
     }
 
-    fun stop() {
+    fun stop() = stop(invokeCallback = false)
+
+    private fun stop(invokeCallback: Boolean) {
         player?.let { p ->
             runCatching { p.stop() }
             runCatching { p.release() }
@@ -44,12 +48,18 @@ class AudioReplyPlayer(private val context: Context) {
         player = null
         currentFile?.delete()
         currentFile = null
+        val callback = onFinished
+        onFinished = null
+        if (invokeCallback) callback?.invoke()
     }
 
-    private fun cleanup(mp: MediaPlayer, file: File) {
+    private fun finish(mp: MediaPlayer, file: File) {
         runCatching { mp.release() }
         if (player === mp) player = null
         file.delete()
         if (currentFile == file) currentFile = null
+        val callback = onFinished
+        onFinished = null
+        callback?.invoke()
     }
 }
