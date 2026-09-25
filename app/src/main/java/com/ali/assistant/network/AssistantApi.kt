@@ -35,6 +35,26 @@ class AssistantApi(private val context: Context) {
         )
     }
 
+    fun synthesizeSpeech(text: String): ByteArray {
+        val body = JSONObject().put("text", text)
+        val conn = (URL(serverUrl() + "/v1/audio/speech").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 90_000
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "audio/mpeg")
+            appToken().takeIf { it.isNotBlank() }?.let { setRequestProperty("X-Assistant-Token", it) }
+            doOutput = true
+        }
+        conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        val code = conn.responseCode
+        if (code !in 200..299) {
+            val error = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            throw IllegalStateException("Speech server $code: $error")
+        }
+        return conn.inputStream.use { it.readBytes() }
+    }
+
     private fun post(path: String, body: JSONObject): AgentReply {
         val conn = (URL(serverUrl() + path).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"; connectTimeout = 15_000; readTimeout = 90_000
