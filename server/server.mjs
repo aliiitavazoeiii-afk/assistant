@@ -80,7 +80,7 @@ const server = http.createServer(async (req, res) => {
       ensureOpenAI();
       const body = await readJson(req); const text = String(body.text || '').trim();
       if (!text) throw new HttpError(400, 'text is required');
-      if (text.length > 6000) throw new HttpError(400, 'text is too long for speech');
+      if (text.length > 4000) throw new HttpError(400, 'text is too long for speech');
       const audio = await openaiSpeech(text);
       return binary(res, 200, audio, 'audio/mpeg');
     }
