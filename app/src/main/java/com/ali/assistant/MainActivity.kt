@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         speech.listen(onState = vm::setListeningStatus, onResult = vm::submit, onError = vm::setListeningStatus)
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == MIC_REQUEST_CODE) {
             if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) beginListening()
