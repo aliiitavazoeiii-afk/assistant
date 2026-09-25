@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
             AlertDialog(onDismissRequest = { }, title = { Text(pending.title) }, text = { Text(pending.detail) }, confirmButton = { Button(onClick = { vm.resolveConfirmation(true) }) { Text("تأیید و اجرا") } }, dismissButton = { TextButton(onClick = { vm.resolveConfirmation(false) }) { Text("لغو") } })
         }
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Assistant", style = MaterialTheme.typography.headlineLarge); Text("v0.2 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
+            Text("Assistant", style = MaterialTheme.typography.headlineLarge); Text("v0.2.1 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(value = command, onValueChange = { command = it }, label = { Text("دستور") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = { beginListening() }, enabled = !vm.busy) { Icon(Icons.Default.Mic, contentDescription = null); Text(" صحبت") }
@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
             }
             if (vm.lastUserText.isNotBlank()) Text("تو: ${vm.lastUserText}")
             if (vm.lastAssistantText.isNotBlank()) Text("دستیار: ${vm.lastAssistantText}")
+            Text("صدای پاسخ توسط هوش مصنوعی تولید می‌شود؛ اگر صدای ابری در دسترس نباشد، اپ از صدای محلی گوشی استفاده می‌کند.", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(8.dp)); Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL (HTTPS برای استفاده واقعی)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Button(onClick = { vm.saveServerUrl(url) }) { Text("ذخیره آدرس سرور") }
