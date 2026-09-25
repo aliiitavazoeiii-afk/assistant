@@ -108,7 +108,7 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
         .put("locale", Locale.getDefault().toLanguageTag())
         .put("preferredLanguage", "fa-IR")
         .put("platform", "android")
-        .put("assistantVersion", "0.2.1")
+        .put("assistantVersion", "0.2.3")
 
     override fun onCleared() {
         pendingDecision?.cancel()
