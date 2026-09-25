@@ -10,6 +10,7 @@ import com.ali.assistant.network.AssistantApi
 import com.ali.assistant.network.ToolCall
 import com.ali.assistant.network.ToolOutput
 import com.ali.assistant.tools.ToolExecutor
+import com.ali.assistant.voice.AudioReplyPlayer
 import com.ali.assistant.voice.LocalTts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,8 @@ data class PendingConfirmation(val title: String, val detail: String)
 class AssistantViewModel(app: Application) : AndroidViewModel(app) {
     private val api = AssistantApi(app)
     private val tools = ToolExecutor(app)
-    private val tts = LocalTts(app)
+    private val localTts = LocalTts(app)
+    private val audioPlayer = AudioReplyPlayer(app)
     private var pendingDecision: CompletableDeferred<Boolean>? = null
 
     var status by mutableStateOf("آماده"); private set
@@ -55,8 +57,32 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     reply = api.continueTurn(reply.responseId, outputs, deviceContext())
                 }
+
                 val finalText = reply.text.ifBlank { "انجام شد." }
-                withContext(Dispatchers.Main) { lastAssistantText = finalText; status = "آماده"; tts.speak(finalText) }
+                withContext(Dispatchers.Main) {
+                    lastAssistantText = finalText
+                    status = "دارم جواب رو می‌خونم…"
+                }
+
+                val cloudVoicePlayed = try {
+                    val audio = api.synthesizeSpeech(finalText)
+                    withContext(Dispatchers.Main) { audioPlayer.play(audio) }
+                } catch (_: Throwable) {
+                    false
+                }
+
+                withContext(Dispatchers.Main) {
+                    if (cloudVoicePlayed) {
+                        status = "آماده"
+                    } else {
+                        val fallbackStarted = localTts.speak(finalText)
+                        status = if (fallbackStarted) {
+                            "آماده • صدای محلی"
+                        } else {
+                            "آماده • متن آماده است؛ صدای فارسی در دسترس نیست"
+                        }
+                    }
+                }
             } catch (t: Throwable) {
                 withContext(Dispatchers.Main) { lastAssistantText = "خطا: ${t.message ?: t.javaClass.simpleName}"; status = "خطا" }
             } finally {
@@ -76,6 +102,18 @@ class AssistantViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resolveConfirmation(approved: Boolean) { pendingDecision?.complete(approved) }
     fun setListeningStatus(value: String) { status = value }
-    private fun deviceContext(): JSONObject = JSONObject().put("now", ZonedDateTime.now().toOffsetDateTime().toString()).put("timeZone", TimeZone.getDefault().id).put("locale", Locale.getDefault().toLanguageTag()).put("platform", "android").put("assistantVersion", "0.2.0")
-    override fun onCleared() { pendingDecision?.cancel(); tts.shutdown(); super.onCleared() }
+    private fun deviceContext(): JSONObject = JSONObject()
+        .put("now", ZonedDateTime.now().toOffsetDateTime().toString())
+        .put("timeZone", TimeZone.getDefault().id)
+        .put("locale", Locale.getDefault().toLanguageTag())
+        .put("preferredLanguage", "fa-IR")
+        .put("platform", "android")
+        .put("assistantVersion", "0.2.1")
+
+    override fun onCleared() {
+        pendingDecision?.cancel()
+        audioPlayer.stop()
+        localTts.shutdown()
+        super.onCleared()
+    }
 }
