@@ -164,7 +164,7 @@ class HotwordService : Service(), RecognitionListener {
     private fun preloadWakeAck() {
         worker.execute {
             val audio = runCatching { api.synthesizeSpeech(WAKE_ACK) }.getOrNull()
-            if (!audio.isNullOrEmpty()) wakeAckAudio = audio
+            if (audio != null && audio.isNotEmpty()) wakeAckAudio = audio
         }
     }
 
@@ -198,16 +198,16 @@ class HotwordService : Service(), RecognitionListener {
         updateNotification("بیوک شنیده شد • در حال پاسخ…")
 
         val cached = wakeAckAudio
-        if (!cached.isNullOrEmpty()) {
+        if (cached != null && cached.isNotEmpty()) {
             playWakeAck(cached)
             return
         }
 
         worker.execute {
             val audio = runCatching { api.synthesizeSpeech(WAKE_ACK) }.getOrNull()
-            if (!audio.isNullOrEmpty()) wakeAckAudio = audio
+            if (audio != null && audio.isNotEmpty()) wakeAckAudio = audio
             handler.post {
-                if (!audio.isNullOrEmpty()) playWakeAck(audio)
+                if (audio != null && audio.isNotEmpty()) playWakeAck(audio)
                 else fallbackWakeAck()
             }
         }
