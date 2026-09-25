@@ -12,10 +12,13 @@ import { buildServerTools } from './lib/tools.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv(path.join(__dirname, '.env'));
 
+const VERSION = '0.2.1';
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || 'low';
+const TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
+const TTS_VOICE = process.env.OPENAI_TTS_VOICE || 'coral';
 const API_KEY = process.env.OPENAI_API_KEY || '';
 const STORE_RESPONSES = String(process.env.OPENAI_STORE_RESPONSES || 'true').toLowerCase() !== 'false';
 const APP_TOKEN = process.env.ASSISTANT_APP_TOKEN || '';
@@ -69,9 +72,18 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'GET' && url.pathname === '/health') {
-      return json(res, 200, { ok:true, version:'0.2.0', model:MODEL, openaiConfigured:Boolean(API_KEY), nodes:nodes.list().length });
+      return json(res, 200, { ok:true, version:VERSION, model:MODEL, ttsModel:TTS_MODEL, openaiConfigured:Boolean(API_KEY), nodes:nodes.list().length });
     }
     if (url.pathname.startsWith('/v1/')) ensureAuthorized(req);
+
+    if (req.method === 'POST' && url.pathname === '/v1/audio/speech') {
+      ensureOpenAI();
+      const body = await readJson(req); const text = String(body.text || '').trim();
+      if (!text) throw new HttpError(400, 'text is required');
+      if (text.length > 6000) throw new HttpError(400, 'text is too long for speech');
+      const audio = await openaiSpeech(text);
+      return binary(res, 200, audio, 'audio/mpeg');
+    }
 
     if (req.method === 'POST' && url.pathname === '/v1/agent/turn') {
       ensureOpenAI();
@@ -112,7 +124,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => console.log(`Assistant v0.2 listening on http://${HOST}:${PORT} using ${MODEL}`));
+server.listen(PORT, HOST, () => console.log(`Assistant v${VERSION} listening on http://${HOST}:${PORT} using ${MODEL}`));
 
 async function processResponse(initial, sessionId) {
   let response = initial; let rounds = 0;
@@ -144,10 +156,25 @@ async function openaiResponse(extra) {
   const r = await fetch('https://api.openai.com/v1/responses', { method:'POST', headers:{ Authorization:`Bearer ${API_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(payload) });
   const text = await r.text(); if (!r.ok) throw new Error(`OpenAI ${r.status}: ${text}`); return JSON.parse(text);
 }
+
+async function openaiSpeech(text) {
+  const payload = {
+    model:TTS_MODEL,
+    voice:TTS_VOICE,
+    input:text,
+    instructions:'Speak naturally in Persian (Farsi), with a clear conversational Iranian Persian delivery. Do not translate, summarize, add, or omit words.',
+    response_format:'mp3'
+  };
+  const r = await fetch('https://api.openai.com/v1/audio/speech', { method:'POST', headers:{ Authorization:`Bearer ${API_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(payload) });
+  if (!r.ok) { const error = await r.text(); throw new Error(`OpenAI speech ${r.status}: ${error}`); }
+  return Buffer.from(await r.arrayBuffer());
+}
+
 function simplify(response) { const toolCalls=[]; const text=[]; for (const item of response.output || []) { if (item.type === 'function_call') toolCalls.push({ callId:item.call_id, name:item.name, arguments:item.arguments || '{}' }); if (item.type === 'message') for (const c of item.content || []) if (c.type === 'output_text' && c.text) text.push(c.text); } return { responseId:response.id, text:text.join('\n').trim(), toolCalls }; }
 function ensureAuthorized(req) { if (!APP_TOKEN) throw new HttpError(503, 'ASSISTANT_APP_TOKEN is not configured'); const provided=String(req.headers['x-assistant-token'] || ''); const a=Buffer.from(provided), b=Buffer.from(APP_TOKEN); if (a.length !== b.length || !crypto.timingSafeEqual(a,b)) throw new HttpError(401, 'unauthorized assistant client'); }
 function ensureOpenAI() { if (!API_KEY) throw new HttpError(503, 'OPENAI_API_KEY is not configured yet'); }
 function json(res,status,value) { const body=JSON.stringify(value); res.writeHead(status,{ 'Content-Type':'application/json; charset=utf-8', 'Content-Length':Buffer.byteLength(body), 'Cache-Control':'no-store' }); res.end(body); }
+function binary(res,status,body,contentType) { res.writeHead(status,{ 'Content-Type':contentType, 'Content-Length':body.length, 'Cache-Control':'no-store' }); res.end(body); }
 async function readJson(req) { const chunks=[]; let bytes=0; for await (const chunk of req) { bytes += chunk.length; if (bytes > 2_000_000) throw new HttpError(413,'request too large'); chunks.push(chunk); } try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw new HttpError(400,'invalid JSON'); } }
 function loadEnv(file) { if (!fs.existsSync(file)) return; for (const raw of fs.readFileSync(file,'utf8').split(/\r?\n/)) { const line=raw.trim(); if (!line || line.startsWith('#')) continue; const i=line.indexOf('='); if (i<1) continue; const k=line.slice(0,i).trim(); let v=line.slice(i+1).trim(); if ((v.startsWith('"')&&v.endsWith('"'))||(v.startsWith("'")&&v.endsWith("'"))) v=v.slice(1,-1); if (!(k in process.env)) process.env[k]=v; } }
 function fn(name,description,properties,required){return{type:'function',name,description,parameters:{type:'object',properties,required,additionalProperties:false}};} function str(description){return{type:'string',description};} function int(description){return{type:'integer',minimum:1,maximum:100,description};} function bool(description){return{type:'boolean',description};} function en(values,description){return{type:'string',enum:values,description};}
