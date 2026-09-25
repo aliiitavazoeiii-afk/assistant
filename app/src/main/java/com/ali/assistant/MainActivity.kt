@@ -3,6 +3,7 @@ package com.ali.assistant
 import android.Manifest
 import android.app.AlarmManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -25,31 +26,78 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ali.assistant.ui.AssistantViewModel
 import com.ali.assistant.voice.SpeechInputManager
 import com.ali.assistant.wake.HotwordService
 
 class MainActivity : ComponentActivity() {
+    companion object { private const val MIC_REQUEST_CODE = 2001 }
+
     private val vm: AssistantViewModel by viewModels()
     private lateinit var speech: SpeechInputManager
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); speech = SpeechInputManager(this); setContent { MaterialTheme { AssistantScreen(vm) } }; handleIntent(intent) }
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); handleIntent(intent) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        speech = SpeechInputManager(this)
+        setContent { MaterialTheme { AssistantScreen(vm) } }
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
     private fun handleIntent(intent: Intent) {
         intent.getStringExtra("hotword_command")?.takeIf { it.isNotBlank() }?.let { vm.submit(it) }
         if (intent.getBooleanExtra("auto_listen", false)) window.decorView.postDelayed({ beginListening() }, 450)
-        intent.removeExtra("hotword_command"); intent.removeExtra("auto_listen")
+        intent.removeExtra("hotword_command")
+        intent.removeExtra("auto_listen")
     }
-    private fun beginListening() { speech.listen(onState = vm::setListeningStatus, onResult = vm::submit, onError = vm::setListeningStatus) }
 
-    @Composable private fun AssistantScreen(vm: AssistantViewModel) {
-        var command by remember { mutableStateOf("") }; var url by remember { mutableStateOf(vm.serverUrl) }; var appToken by remember { mutableStateOf(vm.appToken) }
-        val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
-        vm.pendingConfirmation?.let { pending ->
-            AlertDialog(onDismissRequest = { }, title = { Text(pending.title) }, text = { Text(pending.detail) }, confirmButton = { Button(onClick = { vm.resolveConfirmation(true) }) { Text("تأیید و اجرا") } }, dismissButton = { TextButton(onClick = { vm.resolveConfirmation(false) }) { Text("لغو") } })
+    private fun beginListening() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            vm.setListeningStatus("برای صحبت، اجازه میکروفن لازم است")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST_CODE)
+            return
         }
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Assistant", style = MaterialTheme.typography.headlineLarge); Text("v0.2.1 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
+        speech.listen(onState = vm::setListeningStatus, onResult = vm::submit, onError = vm::setListeningStatus)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == MIC_REQUEST_CODE) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) beginListening()
+            else vm.setListeningStatus("اجازه میکروفن داده نشده؛ از Settings > Apps > Assistant > Permissions فعالش کن")
+        }
+    }
+
+    @Composable
+    private fun AssistantScreen(vm: AssistantViewModel) {
+        var command by remember { mutableStateOf("") }
+        var url by remember { mutableStateOf(vm.serverUrl) }
+        var appToken by remember { mutableStateOf(vm.appToken) }
+        val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
+        vm.pendingConfirmation?.let { pending ->
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text(pending.title) },
+                text = { Text(pending.detail) },
+                confirmButton = { Button(onClick = { vm.resolveConfirmation(true) }) { Text("تأیید و اجرا") } },
+                dismissButton = { TextButton(onClick = { vm.resolveConfirmation(false) }) { Text("لغو") } }
+            )
+        }
+
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Assistant", style = MaterialTheme.typography.headlineLarge)
+            Text("v0.2.2 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(value = command, onValueChange = { command = it }, label = { Text("دستور") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = { beginListening() }, enabled = !vm.busy) { Icon(Icons.Default.Mic, contentDescription = null); Text(" صحبت") }
@@ -58,7 +106,8 @@ class MainActivity : ComponentActivity() {
             if (vm.lastUserText.isNotBlank()) Text("تو: ${vm.lastUserText}")
             if (vm.lastAssistantText.isNotBlank()) Text("دستیار: ${vm.lastAssistantText}")
             Text("صدای پاسخ توسط هوش مصنوعی تولید می‌شود؛ اگر صدای ابری در دسترس نباشد، اپ از صدای محلی گوشی استفاده می‌کند.", style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp)); Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL (HTTPS برای استفاده واقعی)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Button(onClick = { vm.saveServerUrl(url) }) { Text("ذخیره آدرس سرور") }
             OutlinedTextField(value = appToken, onValueChange = { appToken = it }, label = { Text("App connection token") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -73,10 +122,32 @@ class MainActivity : ComponentActivity() {
             Text("تماس و SMS قبل از اجرا روی خود گوشی تأیید می‌خواهند. Wake Word هنوز آزمایشی است.")
         }
     }
+
     private fun runtimePermissions(): Array<String> = buildList {
-        add(Manifest.permission.RECORD_AUDIO); add(Manifest.permission.CAMERA); add(Manifest.permission.READ_CONTACTS); add(Manifest.permission.CALL_PHONE); add(Manifest.permission.READ_SMS); add(Manifest.permission.SEND_SMS); add(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (Build.VERSION.SDK_INT >= 33) { add(Manifest.permission.POST_NOTIFICATIONS); add(Manifest.permission.READ_MEDIA_AUDIO) } else add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        add(Manifest.permission.RECORD_AUDIO)
+        add(Manifest.permission.CAMERA)
+        add(Manifest.permission.READ_CONTACTS)
+        add(Manifest.permission.CALL_PHONE)
+        add(Manifest.permission.READ_SMS)
+        add(Manifest.permission.SEND_SMS)
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= 33) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+            add(Manifest.permission.READ_MEDIA_AUDIO)
+        } else add(Manifest.permission.READ_EXTERNAL_STORAGE)
     }.toTypedArray()
-    private fun requestExactAlarmAccess() { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { val am = getSystemService(AlarmManager::class.java); if (!am.canScheduleExactAlarms()) startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply { data = android.net.Uri.parse("package:$packageName") }) } }
-    override fun onDestroy() { speech.stop(); super.onDestroy() }
+
+    private fun requestExactAlarmAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val am = getSystemService(AlarmManager::class.java)
+            if (!am.canScheduleExactAlarms()) startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = android.net.Uri.parse("package:$packageName")
+            })
+        }
+    }
+
+    override fun onDestroy() {
+        speech.stop()
+        super.onDestroy()
+    }
 }
