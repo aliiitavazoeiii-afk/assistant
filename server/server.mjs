@@ -12,13 +12,15 @@ import { buildServerTools } from './lib/tools.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv(path.join(__dirname, '.env'));
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.3';
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || 'low';
 const TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts';
-const TTS_VOICE = process.env.OPENAI_TTS_VOICE || 'coral';
+const TTS_VOICE = process.env.OPENAI_TTS_VOICE || 'marin';
+const TTS_SPEED = Math.min(1.2, Math.max(0.75, Number(process.env.OPENAI_TTS_SPEED || 0.94)));
+const TTS_INSTRUCTIONS = process.env.OPENAI_TTS_INSTRUCTIONS || 'Speak as a native Iranian Persian speaker in natural conversational Farsi. Use a warm, calm Tehran-style accent, natural Persian vowels and pauses, and no English accent. Speak slightly slower than normal conversation without sounding robotic or over-enunciated. Do not translate, summarize, add, or omit words.';
 const API_KEY = process.env.OPENAI_API_KEY || '';
 const STORE_RESPONSES = String(process.env.OPENAI_STORE_RESPONSES || 'true').toLowerCase() !== 'false';
 const APP_TOKEN = process.env.ASSISTANT_APP_TOKEN || '';
@@ -72,7 +74,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'GET' && url.pathname === '/health') {
-      return json(res, 200, { ok:true, version:VERSION, model:MODEL, ttsModel:TTS_MODEL, openaiConfigured:Boolean(API_KEY), nodes:nodes.list().length });
+      return json(res, 200, { ok:true, version:VERSION, model:MODEL, ttsModel:TTS_MODEL, ttsVoice:TTS_VOICE, ttsSpeed:TTS_SPEED, openaiConfigured:Boolean(API_KEY), nodes:nodes.list().length });
     }
     if (url.pathname.startsWith('/v1/')) ensureAuthorized(req);
 
@@ -162,7 +164,8 @@ async function openaiSpeech(text) {
     model:TTS_MODEL,
     voice:TTS_VOICE,
     input:text,
-    instructions:'Speak naturally in Persian (Farsi), with a clear conversational Iranian Persian delivery. Do not translate, summarize, add, or omit words.',
+    instructions:TTS_INSTRUCTIONS,
+    speed:TTS_SPEED,
     response_format:'mp3'
   };
   const r = await fetch('https://api.openai.com/v1/audio/speech', { method:'POST', headers:{ Authorization:`Bearer ${API_KEY}`, 'Content-Type':'application/json' }, body:JSON.stringify(payload) });
