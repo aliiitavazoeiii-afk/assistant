@@ -33,7 +33,10 @@ import com.ali.assistant.voice.SpeechInputManager
 import com.ali.assistant.wake.HotwordService
 
 class MainActivity : ComponentActivity() {
-    companion object { private const val MIC_REQUEST_CODE = 2001 }
+    companion object {
+        private const val MIC_REQUEST_CODE = 2001
+        private const val MIC_WAKE_REQUEST_CODE = 2002
+    }
 
     private val vm: AssistantViewModel by viewModels()
     private lateinit var speech: SpeechInputManager
@@ -67,11 +70,27 @@ class MainActivity : ComponentActivity() {
         speech.listen(onState = vm::setListeningStatus, onResult = vm::submit, onError = vm::setListeningStatus)
     }
 
+    private fun startWakeWord() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            vm.setListeningStatus("برای بیوک، اجازه میکروفن لازم است")
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_WAKE_REQUEST_CODE)
+            return
+        }
+        ContextCompat.startForegroundService(this, Intent(this, HotwordService::class.java))
+        vm.setListeningStatus("بیوک روشن شد؛ می‌تونی اپ رو ببندی")
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == MIC_REQUEST_CODE) {
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) beginListening()
-            else vm.setListeningStatus("اجازه میکروفن داده نشده؛ از Settings > Apps > Assistant > Permissions فعالش کن")
+        when (requestCode) {
+            MIC_REQUEST_CODE -> {
+                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) beginListening()
+                else vm.setListeningStatus("اجازه میکروفن داده نشده؛ از Settings > Apps > Assistant > Permissions فعالش کن")
+            }
+            MIC_WAKE_REQUEST_CODE -> {
+                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startWakeWord()
+                else vm.setListeningStatus("بدون اجازه میکروفن، بیوک نمی‌تونه در پس‌زمینه گوش بده")
+            }
         }
     }
 
@@ -97,7 +116,7 @@ class MainActivity : ComponentActivity() {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Assistant", style = MaterialTheme.typography.headlineLarge)
-            Text("v0.2.2 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
+            Text("v0.2.3 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(value = command, onValueChange = { command = it }, label = { Text("دستور") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = { beginListening() }, enabled = !vm.busy) { Icon(Icons.Default.Mic, contentDescription = null); Text(" صحبت") }
@@ -105,7 +124,7 @@ class MainActivity : ComponentActivity() {
             }
             if (vm.lastUserText.isNotBlank()) Text("تو: ${vm.lastUserText}")
             if (vm.lastAssistantText.isNotBlank()) Text("دستیار: ${vm.lastAssistantText}")
-            Text("صدای پاسخ توسط هوش مصنوعی تولید می‌شود؛ اگر صدای ابری در دسترس نباشد، اپ از صدای محلی گوشی استفاده می‌کند.", style = MaterialTheme.typography.bodySmall)
+            Text("صدای پاسخ با voice ابری تولید می‌شود؛ اگر در دسترس نباشد، اپ از صدای محلی گوشی استفاده می‌کند.", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(8.dp))
             Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL (HTTPS برای استفاده واقعی)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -115,11 +134,17 @@ class MainActivity : ComponentActivity() {
             Button(onClick = { permissionLauncher.launch(runtimePermissions()) }) { Text("دادن Permissionهای پایه") }
             Button(onClick = { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("فعال‌کردن Notification Access") }
             Button(onClick = { requestExactAlarmAccess() }) { Text("اجازه Exact Alarm") }
+
+            Text("بیوک", style = MaterialTheme.typography.titleLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, HotwordService::class.java)) }) { Text("روشن‌کردن Wake Word") }
-                Button(onClick = { stopService(Intent(this@MainActivity, HotwordService::class.java)) }) { Text("خاموش‌کردن") }
+                Button(onClick = { startWakeWord() }) { Text("روشن‌کردن بیوک") }
+                Button(onClick = {
+                    stopService(Intent(this@MainActivity, HotwordService::class.java))
+                    vm.setListeningStatus("بیوک خاموش شد")
+                }) { Text("خاموش‌کردن") }
             }
-            Text("تماس و SMS قبل از اجرا روی خود گوشی تأیید می‌خواهند. Wake Word هنوز آزمایشی است.")
+            Text("بعد از روشن‌کردن، می‌تونی اپ رو ببندی یا گوشی رو قفل کنی و بگی «بیوک». علامت میکروفن Android هنگام گوش‌دادن دائمی طبیعی و اجباری است. بعد از ری‌استارت گوشی، بیوک را یک بار دوباره روشن کن.", style = MaterialTheme.typography.bodySmall)
+            Text("تماس و SMS قبل از اجرا روی خود گوشی تأیید می‌خواهند.")
         }
     }
 
