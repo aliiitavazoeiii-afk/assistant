@@ -33,7 +33,7 @@ class AudioReplyPlayer(private val context: Context) {
             p.prepareAsync()
             true
         }.getOrElse {
-            stop(invokeCallback = true)
+            stop(invokeCallback = false)
             false
         }
     }
