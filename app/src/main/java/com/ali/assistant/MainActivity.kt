@@ -15,17 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -40,20 +30,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -120,7 +97,10 @@ class MainActivity : ComponentActivity() {
         var wakeWanted by remember { mutableStateOf(WakePreferences.isEnabled(context)) }
 
         val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) startWakeService() else WakePreferences.setEnabled(context, false)
+            if (granted) startWakeService() else {
+                WakePreferences.setEnabled(context, false)
+                wakeWanted = false
+            }
         }
         val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -128,9 +108,7 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
                     context, Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+            ) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         val open = reminders.count { !it.completed }
@@ -146,20 +124,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val background = Brush.verticalGradient(
-            listOf(Color(0xFF07111F), Color(0xFF0B1020), Color(0xFF130D21))
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(background)
+                .background(Brush.verticalGradient(listOf(Color(0xFF07111F), Color(0xFF0B1020), Color(0xFF130D21))))
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(18.dp))
             Header()
-
             WakeCard(
                 stateText = when {
                     wake.enabled -> wake.message
@@ -172,48 +145,37 @@ class MainActivity : ComponentActivity() {
                     wakeWanted = enable
                     if (enable) {
                         WakePreferences.setEnabled(context, true)
-                        if (ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.RECORD_AUDIO
-                            ) == PackageManager.PERMISSION_GRANTED
-                        ) startWakeService() else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            startWakeService()
+                        } else micLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     } else {
                         WakePreferences.setEnabled(context, false)
                         stopService(Intent(this@MainActivity, BiyokWakeService::class.java))
                     }
                 }
             )
-
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatCard("باز", open, Icons.Default.RadioButtonChecked, Modifier.weight(1f))
                 StatCard("Inbox", inbox, Icons.Default.Inbox, Modifier.weight(1f))
                 StatCard("زمان‌دار", scheduled, Icons.Default.Schedule, Modifier.weight(1f))
             }
-
-            QuickAdd(
-                value = manualText,
-                onValueChange = { manualText = it },
-                onAdd = {
-                    val clean = manualText.trim()
-                    if (clean.isNotBlank()) {
-                        val parsed = PersianReminderParser.parse("یادم بنداز $clean")
-                        if (parsed.kind == VoiceCommandKind.ADD) {
-                            val item = store.add(parsed.text, clean, parsed.dueAtMillis, false)
-                            ReminderScheduler.schedule(context, item)
-                        }
-                        manualText = ""
+            QuickAdd(manualText, { manualText = it }) {
+                val clean = manualText.trim()
+                if (clean.isNotBlank()) {
+                    val parsed = PersianReminderParser.parse("یادم بنداز $clean")
+                    if (parsed.kind == VoiceCommandKind.ADD) {
+                        val item = store.add(parsed.text, clean, parsed.dueAtMillis, false)
+                        ReminderScheduler.schedule(context, item)
                     }
+                    manualText = ""
                 }
-            )
-
-            FilterRow(filter = filter, onChange = { filter = it }, doneCount = done)
+            }
+            FilterRow(filter, { filter = it }, done)
 
             if (visible.isEmpty()) {
                 EmptyState(filter, Modifier.weight(1f))
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)
-                ) {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     items(visible, key = { it.id }) { item ->
                         ReminderCard(
                             item = item,
@@ -235,9 +197,7 @@ class MainActivity : ComponentActivity() {
                 exactReady = ReminderScheduler.hasExactAlarmAccess(context),
                 notificationReady = BiyokNotifications.canNotify(context),
                 onExact = { requestExactAlarmAccess() },
-                onNotifications = {
-                    if (Build.VERSION.SDK_INT >= 33) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                },
+                onNotifications = { if (Build.VERSION.SDK_INT >= 33) notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
                 onBattery = { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
             )
         }
@@ -252,9 +212,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarm = getSystemService(AlarmManager::class.java)
             if (!alarm.canScheduleExactAlarms()) {
-                startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                    data = Uri.parse("package:$packageName")
-                })
+                startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply { data = Uri.parse("package:$packageName") })
             }
         }
     }
@@ -267,30 +225,16 @@ private fun Header() {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("بیوک", fontSize = 38.sp, fontWeight = FontWeight.Black, color = Color.White)
-            Text(
-                "هر چیزی یادت افتاد، همون لحظه بسپار به بیوک.",
-                color = Color(0xFFAAB7CC),
-                fontSize = 14.sp
-            )
+            Text("هر چیزی یادت افتاد، همون لحظه بسپار به بیوک.", color = Color(0xFFAAB7CC), fontSize = 14.sp)
         }
         Surface(shape = CircleShape, color = Color(0xFF18243A)) {
-            Icon(
-                Icons.Default.Mic,
-                contentDescription = null,
-                tint = Color(0xFF73E6C4),
-                modifier = Modifier.padding(13.dp).size(26.dp)
-            )
+            Icon(Icons.Default.Mic, null, tint = Color(0xFF73E6C4), modifier = Modifier.padding(13.dp).size(26.dp))
         }
     }
 }
 
 @Composable
-private fun WakeCard(
-    stateText: String,
-    phase: WakePhase,
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
+private fun WakeCard(stateText: String, phase: WakePhase, enabled: Boolean, onToggle: (Boolean) -> Unit) {
     val accent = when (phase) {
         WakePhase.COMMAND_LISTENING -> Color(0xFFFFC857)
         WakePhase.SAVED -> Color(0xFF73E6C4)
@@ -305,10 +249,7 @@ private fun WakeCard(
         color = Color(0xCC111B2E)
     ) {
         Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(46.dp).background(accent.copy(alpha = 0.16f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(46.dp).background(accent.copy(alpha = 0.16f), CircleShape), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.RadioButtonChecked, null, tint = accent, modifier = Modifier.size(24.dp))
             }
             Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
@@ -322,7 +263,7 @@ private fun WakeCard(
 
 @Composable
 private fun StatCard(title: String, count: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(18.dp), color = Color(0xAA121B2C)) {
+    Surface(modifier, shape = RoundedCornerShape(18.dp), color = Color(0xAA121B2C)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(icon, null, tint = Color(0xFF8EBBFF), modifier = Modifier.size(18.dp))
             Text(count.toPersianDigits(), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -349,9 +290,7 @@ private fun QuickAdd(value: String, onValueChange: (String) -> Unit, onAdd: () -
                 modifier = Modifier.padding(start = 6.dp).height(54.dp),
                 shape = RoundedCornerShape(15.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF276C5C))
-            ) {
-                Icon(Icons.Default.Add, null)
-            }
+            ) { Icon(Icons.Default.Add, null) }
         }
     }
 }
@@ -360,31 +299,12 @@ private fun QuickAdd(value: String, onValueChange: (String) -> Unit, onAdd: () -
 private fun FilterRow(filter: ReminderFilter, onChange: (ReminderFilter) -> Unit, doneCount: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            FilterChip(
-                modifier = Modifier.weight(1f),
-                selected = filter == ReminderFilter.OPEN,
-                onClick = { onChange(ReminderFilter.OPEN) },
-                label = { Text("باز") }
-            )
-            FilterChip(
-                modifier = Modifier.weight(1f),
-                selected = filter == ReminderFilter.INBOX,
-                onClick = { onChange(ReminderFilter.INBOX) },
-                label = { Text("Inbox") }
-            )
-            FilterChip(
-                modifier = Modifier.weight(1f),
-                selected = filter == ReminderFilter.SCHEDULED,
-                onClick = { onChange(ReminderFilter.SCHEDULED) },
-                label = { Text("زمان‌دار") }
-            )
+            FilterChip(Modifier.weight(1f), filter == ReminderFilter.OPEN, { onChange(ReminderFilter.OPEN) }, label = { Text("باز") })
+            FilterChip(Modifier.weight(1f), filter == ReminderFilter.INBOX, { onChange(ReminderFilter.INBOX) }, label = { Text("Inbox") })
+            FilterChip(Modifier.weight(1f), filter == ReminderFilter.SCHEDULED, { onChange(ReminderFilter.SCHEDULED) }, label = { Text("زمان‌دار") })
         }
         if (doneCount > 0 || filter == ReminderFilter.DONE) {
-            FilterChip(
-                selected = filter == ReminderFilter.DONE,
-                onClick = { onChange(ReminderFilter.DONE) },
-                label = { Text("انجام‌شده ${doneCount.toPersianDigits()}") }
-            )
+            FilterChip(selected = filter == ReminderFilter.DONE, onClick = { onChange(ReminderFilter.DONE) }, label = { Text("انجام‌شده ${doneCount.toPersianDigits()}") })
         }
     }
 }
@@ -394,7 +314,7 @@ private fun ReminderCard(item: ReminderItem, onCompleted: (Boolean) -> Unit, onD
     val overdue = item.dueAt?.let { it < System.currentTimeMillis() && !item.completed } == true
     Surface(shape = RoundedCornerShape(19.dp), color = Color(0xD9131C2D)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = item.completed, onCheckedChange = onCompleted)
+            Checkbox(item.completed, onCompleted)
             Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                 Text(
                     item.text,
@@ -406,23 +326,12 @@ private fun ReminderCard(item: ReminderItem, onCompleted: (Boolean) -> Unit, onD
                 )
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(
-                        if (item.dueAt == null) Icons.Default.Inbox else Icons.Default.Schedule,
-                        null,
-                        modifier = Modifier.size(14.dp),
-                        tint = if (overdue) Color(0xFFFF7B87) else Color(0xFF8EBBFF)
-                    )
-                    Text(
-                        item.dueAt?.let(::formatDue) ?: "بدون زمان • Inbox",
-                        color = if (overdue) Color(0xFFFF8D98) else Color(0xFF8494AA),
-                        fontSize = 11.sp
-                    )
+                    Icon(if (item.dueAt == null) Icons.Default.Inbox else Icons.Default.Schedule, null, Modifier.size(14.dp), tint = if (overdue) Color(0xFFFF7B87) else Color(0xFF8EBBFF))
+                    Text(item.dueAt?.let(::formatDue) ?: "بدون زمان • Inbox", color = if (overdue) Color(0xFFFF8D98) else Color(0xFF8494AA), fontSize = 11.sp)
                     if (item.createdByVoice) Text("• صدا", color = Color(0xFF6D7A8E), fontSize = 11.sp)
                 }
             }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = Color(0xFF6F7C91), modifier = Modifier.size(19.dp))
-            }
+            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, null, tint = Color(0xFF6F7C91), modifier = Modifier.size(19.dp)) }
         }
     }
 }
@@ -446,37 +355,26 @@ private fun EmptyState(filter: ReminderFilter, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SetupRow(
-    exactReady: Boolean,
-    notificationReady: Boolean,
-    onExact: () -> Unit,
-    onNotifications: () -> Unit,
-    onBattery: () -> Unit,
-) {
+private fun SetupRow(exactReady: Boolean, notificationReady: Boolean, onExact: () -> Unit, onNotifications: () -> Unit, onBattery: () -> Unit) {
     Surface(shape = RoundedCornerShape(18.dp), color = Color(0x80121A29)) {
         Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Settings, null, tint = Color(0xFF77869C), modifier = Modifier.size(17.dp))
                 Text("  تنظیم یک‌باره", color = Color(0xFF97A5B9), fontSize = 12.sp)
             }
-            if (!notificationReady) OutlinedButton(onClick = onNotifications, modifier = Modifier.fillMaxWidth()) {
+            if (!notificationReady) OutlinedButton(onNotifications, Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Notifications, null, modifier = Modifier.size(16.dp)); Text(" اجازه نوتیفیکیشن")
             }
-            if (!exactReady) OutlinedButton(onClick = onExact, modifier = Modifier.fillMaxWidth()) {
+            if (!exactReady) OutlinedButton(onExact, Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Schedule, null, modifier = Modifier.size(16.dp)); Text(" اجازه زمان‌بندی دقیق")
             }
-            OutlinedButton(onClick = onBattery, modifier = Modifier.fillMaxWidth()) {
-                Text("برای پایداری Wake Word: باتری روی Unrestricted")
-            }
+            OutlinedButton(onBattery, Modifier.fillMaxWidth()) { Text("برای پایداری Wake Word: باتری روی Unrestricted") }
         }
     }
 }
 
 private fun formatDue(value: Long): String = SimpleDateFormat("EEE d MMM • HH:mm", Locale("fa", "IR")).format(Date(value))
-
-private fun Int.toPersianDigits(): String = toString().map { c ->
-    if (c in '0'..'9') "۰۱۲۳۴۵۶۷۸۹"[c - '0'] else c
-}.joinToString("")
+private fun Int.toPersianDigits(): String = toString().map { c -> if (c in '0'..'9') "۰۱۲۳۴۵۶۷۸۹"[c - '0'] else c }.joinToString("")
 
 private val BiyokColors: ColorScheme = darkColorScheme(
     primary = Color(0xFF73E6C4),
@@ -488,6 +386,4 @@ private val BiyokColors: ColorScheme = darkColorScheme(
 )
 
 @Composable
-private fun BiyokTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = BiyokColors, content = content)
-}
+private fun BiyokTheme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = BiyokColors, content = content)
