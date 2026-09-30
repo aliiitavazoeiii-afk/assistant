@@ -87,40 +87,48 @@ class BiyokWakeService : Service(), RecognitionListener {
     }
 
     private fun startWakeListening() {
-        if (!hasMicPermission() || model == null) {
-            fail("میکروفن یا مدل آماده نیست")
+        if (!hasMicPermission()) {
+            fail("اجازه میکروفن داده نشده")
             return
         }
-        transitioning.set(true)
+        val readyModel = model ?: run {
+            fail("مدل فارسی هنوز آماده نیست")
+            return
+        }
+        if (transitioning.getAndSet(true)) return
         stopRecognition()
         mode = Mode.WAKE
         lastCommandPartial = ""
         try {
-            recognizer = Recognizer(model, SAMPLE_RATE, WAKE_GRAMMAR)
+            recognizer = Recognizer(readyModel, SAMPLE_RATE, WAKE_GRAMMAR)
             speech = SpeechService(recognizer, SAMPLE_RATE).also { it.startListening(this) }
             setState(WakePhase.WAKE_LISTENING, "آماده • منتظر «بیوک»")
             updateServiceNotification("آماده • منتظر «بیوک»")
         } catch (t: Throwable) {
             fail("شروع Wake Word ناموفق بود: ${t.message ?: t.javaClass.simpleName}")
+            main.postDelayed({ transitioning.set(false); startWakeListening() }, 1800)
+            return
         } finally {
             transitioning.set(false)
         }
     }
 
     private fun triggerWake() {
+        val readyModel = model ?: return
         if (transitioning.getAndSet(true) || mode != Mode.WAKE) return
         stopRecognition()
         mode = Mode.COMMAND
         lastCommandPartial = ""
         try {
-            recognizer = Recognizer(model, SAMPLE_RATE)
+            recognizer = Recognizer(readyModel, SAMPLE_RATE)
             speech = SpeechService(recognizer, SAMPLE_RATE).also { it.startListening(this, COMMAND_TIMEOUT_MS) }
             setState(WakePhase.COMMAND_LISTENING, "بگو چه چیزی یادت بماند…")
             updateServiceNotification("گوش می‌دهم • یادآوری‌ات را بگو")
             wakeTone()
         } catch (t: Throwable) {
             fail("گوش‌دادن به دستور شروع نشد: ${t.message ?: t.javaClass.simpleName}")
-            main.postDelayed(::startWakeListening, 1500)
+            main.postDelayed({ transitioning.set(false); startWakeListening() }, 1500)
+            return
         } finally {
             transitioning.set(false)
         }
@@ -306,6 +314,6 @@ class BiyokWakeService : Service(), RecognitionListener {
         private const val SAMPLE_RATE = 16_000.0f
         private const val COMMAND_TIMEOUT_MS = 10_000
         private val WAKE_VARIANTS = listOf("بیوک", "بویوک", "بؤیوک", "بیوگ", "بیاک", "بیاوک")
-        private val WAKE_GRAMMAR = "[\"بیوک\",\"بویوک\",\"بؤیوک\",\"بیوگ\",\"بیاک\",\"بیاوک\",\"[unk]\"]"
+        private const val WAKE_GRAMMAR = "[\"بیوک\",\"بویوک\",\"بؤیوک\",\"بیوگ\",\"بیاک\",\"بیاوک\",\"[unk]\"]"
     }
 }
