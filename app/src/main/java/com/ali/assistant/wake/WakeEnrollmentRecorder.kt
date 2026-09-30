@@ -50,16 +50,22 @@ class WakeEnrollmentRecorder(private val context: Context) {
         var speechFrames = 0
         var silenceFrames = 0
         var frames = 0
+        var noiseFloor = 120.0
         recorder.startRecording()
         while (frames++ < 200 && pos + chunk.size <= all.size) {
             val n = recorder.read(chunk, 0, chunk.size)
             if (n <= 0) continue
-            val rms = rms(chunk, n)
-            if (rms > 520) {
+            val level = rms(chunk, n)
+            if (!heardSpeech && frames <= 8) noiseFloor = noiseFloor * 0.72 + level * 0.28
+            val startThreshold = maxOf(260.0, noiseFloor * 2.15)
+            val endThreshold = maxOf(210.0, noiseFloor * 1.45)
+            if (!heardSpeech && level > startThreshold) {
                 heardSpeech = true
                 speechFrames++
                 silenceFrames = 0
-            } else if (heardSpeech) silenceFrames++
+            } else if (heardSpeech) {
+                if (level > endThreshold) { speechFrames++; silenceFrames = 0 } else silenceFrames++
+            }
             if (heardSpeech || frames < 18) {
                 System.arraycopy(chunk, 0, all, pos, n)
                 pos += n
