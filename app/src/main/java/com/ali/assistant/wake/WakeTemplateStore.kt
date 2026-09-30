@@ -13,8 +13,13 @@ class WakeTemplateStore(context: Context) {
     fun count(): Int = (0 until MAX_TEMPLATES).count { prefs.contains(key(it)) }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        val edit = prefs.edit()
+        for (i in 0 until MAX_TEMPLATES) edit.remove(key(i))
+        edit.apply()
     }
+
+    fun sensitivity(): Float = prefs.getFloat("sensitivity", 0.55f).coerceIn(0f, 1f)
+    fun setSensitivity(value: Float) { prefs.edit().putFloat("sensitivity", value.coerceIn(0f, 1f)).apply() }
 
     fun add(features: Array<FloatArray>): Int {
         require(features.isNotEmpty())
@@ -39,7 +44,8 @@ class WakeTemplateStore(context: Context) {
 
     fun matches(features: Array<FloatArray>): Boolean {
         if (count() < REQUIRED_TEMPLATES) return false
-        return score(features) <= MATCH_THRESHOLD
+        val threshold = 0.55f + 0.35f * sensitivity()
+        return score(features) <= threshold
     }
 
     private fun encode(features: Array<FloatArray>): String {
@@ -65,6 +71,5 @@ class WakeTemplateStore(context: Context) {
     companion object {
         const val REQUIRED_TEMPLATES = 3
         private const val MAX_TEMPLATES = 3
-        private const val MATCH_THRESHOLD = 0.74f
     }
 }
