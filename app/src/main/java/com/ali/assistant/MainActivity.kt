@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
         val trainer = remember { WakeEnrollmentRecorder(this@MainActivity) }
         var samples by remember { mutableIntStateOf(templateStore.count()) }
         var training by remember { mutableStateOf(false) }
+        var sensitivity by remember { mutableFloatStateOf(templateStore.sensitivity()) }
 
         fun recordTrainingSample() {
             if (training) return
@@ -124,9 +125,7 @@ class MainActivity : ComponentActivity() {
                                     Text("فقط بار اول • سه نمونه کوتاه", color = Color(0xFF8296A7), fontSize = 12.sp)
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    repeat(3) { i ->
-                                        Box(Modifier.size(9.dp).clip(CircleShape).background(if (i < samples) Color(0xFF62D19B) else Color(0xFF334552)))
-                                    }
+                                    repeat(3) { i -> Box(Modifier.size(9.dp).clip(CircleShape).background(if (i < samples) Color(0xFF62D19B) else Color(0xFF334552))) }
                                 }
                             }
                             Button(
@@ -139,8 +138,7 @@ class MainActivity : ComponentActivity() {
                                 shape = RoundedCornerShape(17.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = if (samples >= 3) Color(0xFF244D43) else Color(0xFF196FC3))
                             ) {
-                                Icon(Icons.Rounded.Mic, null)
-                                Spacer(Modifier.width(8.dp))
+                                Icon(Icons.Rounded.Mic, null); Spacer(Modifier.width(8.dp))
                                 Text(if (training) "دارم گوش می‌دم…" else if (samples >= 3) "آموزش کامل • برای آموزش دوباره بزن" else "نمونه ${samples + 1} از ۳")
                             }
                             if (samples > 0) TextButton(onClick = {
@@ -156,6 +154,16 @@ class MainActivity : ComponentActivity() {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("۲. همیشه آماده‌اش کن", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                             Text("بعدش می‌تونی اپ رو ببندی و گوشی رو بذاری روی میز. بگو «بیوک»، beep رو که شنیدی یادآوری‌ات رو بگو.", color = Color(0xFF97A9B8), lineHeight = 20.sp, fontSize = 13.sp)
+                            Text("حساسیت بیوک", color = Color(0xFFBFD1DF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Slider(
+                                value = sensitivity,
+                                onValueChange = { sensitivity = it; templateStore.setSensitivity(it) },
+                                valueRange = 0.15f..0.95f
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("کمتر false positive", color = Color(0xFF647786), fontSize = 10.sp)
+                                Text("راحت‌تر بیدار می‌شه", color = Color(0xFF647786), fontSize = 10.sp)
+                            }
                             Button(
                                 onClick = {
                                     if (samples < 3) vm.updateStatus("اول آموزش سه‌مرحله‌ای بیوک رو کامل کن")
@@ -175,20 +183,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                item {
-                    Text("ثبت سریع", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                }
+                item { Text("ثبت سریع", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold) }
                 item {
                     Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFF0F1A24)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedTextField(
-                                value = text,
-                                onValueChange = { text = it },
-                                placeholder = { Text("مثلاً: فردا ساعت ده پارچه سفارش بدم") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(18.dp),
-                                minLines = 2
-                            )
+                            OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text("مثلاً: فردا ساعت ده پارچه سفارش بدم") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), minLines = 2)
                             Button(onClick = { vm.add(text); text = "" }, enabled = text.isNotBlank(), modifier = Modifier.align(Alignment.End), shape = RoundedCornerShape(16.dp)) { Text("ذخیره") }
                         }
                     }
@@ -205,21 +204,16 @@ class MainActivity : ComponentActivity() {
                 if (vm.items.isEmpty()) item {
                     Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFF0F1A24)) {
                         Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.NotificationsActive, null, tint = Color(0xFF607789), modifier = Modifier.size(38.dp))
-                            Spacer(Modifier.height(10.dp))
-                            Text("فعلاً چیزی ثبت نکردی", color = Color(0xFF9EADBA))
+                            Icon(Icons.Rounded.NotificationsActive, null, tint = Color(0xFF607789), modifier = Modifier.size(38.dp)); Spacer(Modifier.height(10.dp)); Text("فعلاً چیزی ثبت نکردی", color = Color(0xFF9EADBA))
                         }
                     }
                 } else items(vm.items, key = { it.id }) { ReminderCard(it, onDone = { vm.done(it.id) }, onDelete = { vm.delete(it.id) }) }
 
                 item {
-                    HorizontalDivider(color = Color(0xFF23313C))
-                    Spacer(Modifier.height(4.dp))
+                    HorizontalDivider(color = Color(0xFF23313C)); Spacer(Modifier.height(4.dp))
                     Text("اجازه‌های سیستم", color = Color(0xFF91A3B2), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     if (Build.VERSION.SDK_INT >= 33) TextButton(onClick = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("فعال‌کردن نوتیفیکیشن") }
-                    if (Build.VERSION.SDK_INT >= 31) TextButton(onClick = {
-                        startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply { data = android.net.Uri.parse("package:$packageName") })
-                    }) { Text("اجازه یادآوری دقیق") }
+                    if (Build.VERSION.SDK_INT >= 31) TextButton(onClick = { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply { data = android.net.Uri.parse("package:$packageName") }) }) { Text("اجازه یادآوری دقیق") }
                     TextButton(onClick = { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }) { Text("تنظیم باتری برای پایداری پس‌زمینه") }
                     Text("بیوک هیچ API Key، سرور یا مدل زبانی ندارد. متن یادآوری‌ها فقط روی همین گوشی ذخیره می‌شود.", color = Color(0xFF647786), fontSize = 11.sp, lineHeight = 16.sp)
                 }
@@ -252,13 +246,5 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun BiyokTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Color(0xFF3B9CFF),
-            secondary = Color(0xFF6DD39E),
-            background = Color(0xFF071018),
-            surface = Color(0xFF111D28)
-        ),
-        content = content
-    )
+    MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF3B9CFF), secondary = Color(0xFF6DD39E), background = Color(0xFF071018), surface = Color(0xFF111D28)), content = content)
 }
