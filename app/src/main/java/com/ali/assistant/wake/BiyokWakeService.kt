@@ -109,6 +109,8 @@ class BiyokWakeService : Service() {
         var inSpeech = false
         var loudFrames = 0
         var silentFrames = 0
+        var noiseFloor = 120.0
+        var ambientFrames = 0
 
         while (wakeRunning && !capturingCommand) {
             val n = recorder.read(chunk, 0, chunk.size)
@@ -116,19 +118,23 @@ class BiyokWakeService : Service() {
             for (i in 0 until n) { pre[prePos] = chunk[i]; prePos = (prePos + 1) % pre.size }
             val level = rms(chunk, n)
             if (!inSpeech) {
-                if (level > 520) loudFrames++ else loudFrames = (loudFrames - 1).coerceAtLeast(0)
+                if (ambientFrames < 25 || loudFrames == 0) {
+                    noiseFloor = noiseFloor * 0.96 + level * 0.04
+                    ambientFrames++
+                }
+                val startThreshold = maxOf(270.0, noiseFloor * 2.25)
+                if (level > startThreshold) loudFrames++ else loudFrames = (loudFrames - 1).coerceAtLeast(0)
                 if (loudFrames >= 2) {
                     inSpeech = true
                     segPos = 0
-                    for (i in pre.indices) {
-                        segment[segPos++] = pre[(prePos + i) % pre.size]
-                    }
+                    for (i in pre.indices) segment[segPos++] = pre[(prePos + i) % pre.size]
                     silentFrames = 0
                 }
             } else {
                 val canCopy = minOf(n, segment.size - segPos)
                 if (canCopy > 0) { System.arraycopy(chunk, 0, segment, segPos, canCopy); segPos += canCopy }
-                if (level > 430) silentFrames = 0 else silentFrames++
+                val endThreshold = maxOf(220.0, noiseFloor * 1.48)
+                if (level > endThreshold) silentFrames = 0 else silentFrames++
                 if (silentFrames >= 12 || segPos >= segment.size) {
                     val candidate = segment.copyOf(segPos)
                     inSpeech = false; loudFrames = 0; silentFrames = 0; segPos = 0
