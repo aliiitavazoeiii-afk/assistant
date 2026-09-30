@@ -80,6 +80,31 @@ object BiyokNotifications {
         NotificationManagerCompat.from(context).notify(item.id.toRequestCode(), notification)
     }
 
+    fun postListSummary(context: Context, count: Int) {
+        ensureChannels(context)
+        if (!canNotify(context)) return
+        val open = PendingIntent.getActivity(
+            context,
+            7702,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("show_open_items", true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val countFa = count.toString().map { c -> if (c in '0'..'9') "۰۱۲۳۴۵۶۷۸۹"[c - '0'] else c }.joinToString("")
+        NotificationManagerCompat.from(context).notify(
+            7702,
+            NotificationCompat.Builder(context, SETUP_CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_menu_agenda)
+                .setContentTitle("کارهای باز بیوک")
+                .setContentText(if (count == 0) "کاری در Inbox نداری." else "$countFa کار باز داری؛ برای دیدن لیست لمس کن.")
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build()
+        )
+    }
+
     fun postWakeNeedsEnable(context: Context) {
         ensureChannels(context)
         if (!canNotify(context)) return
