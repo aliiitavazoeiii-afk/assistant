@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -32,10 +33,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.ali.assistant.core.ReminderItem
+import com.ali.assistant.server.BiyokServerClient
+import com.ali.assistant.server.BiyokServerSettings
 import com.ali.assistant.wake.BiyokWakeService
 import com.ali.assistant.wake.WakeEnrollmentRecorder
 import com.ali.assistant.wake.WakeTemplateStore
@@ -59,9 +63,14 @@ class MainActivity : ComponentActivity() {
         var text by remember { mutableStateOf("") }
         val templateStore = remember { WakeTemplateStore(this@MainActivity) }
         val trainer = remember { WakeEnrollmentRecorder(this@MainActivity) }
+        val serverClient = remember { BiyokServerClient(this@MainActivity) }
         var samples by remember { mutableIntStateOf(templateStore.count()) }
         var training by remember { mutableStateOf(false) }
         var sensitivity by remember { mutableFloatStateOf(templateStore.sensitivity()) }
+        var serverUrl by remember { mutableStateOf(serverClient.settings.baseUrl()) }
+        var serverToken by remember { mutableStateOf(serverClient.settings.token()) }
+        var serverTesting by remember { mutableStateOf(false) }
+        var serverReady by remember { mutableStateOf(serverClient.settings.isReady()) }
 
         fun recordTrainingSample() {
             if (training) return
@@ -74,6 +83,30 @@ class MainActivity : ComponentActivity() {
                     vm.updateStatus(message)
                 }
             )
+        }
+
+        fun saveAndTestServer() {
+            serverClient.settings.setBaseUrl(serverUrl)
+            serverClient.settings.setToken(serverToken)
+            serverReady = serverClient.settings.isReady()
+            if (!serverReady) {
+                vm.updateStatus("توکن سرور رو وارد کن")
+                return
+            }
+            serverTesting = true
+            vm.updateStatus("دارم اتصال سرور رو تست می‌کنم…")
+            Thread {
+                val result = runCatching { serverClient.ping() }
+                runOnUiThread {
+                    serverTesting = false
+                    if (result.getOrDefault(false)) {
+                        serverReady = true
+                        vm.updateStatus("سرور بیوک وصله • آماده استفاده")
+                    } else {
+                        vm.updateStatus("اتصال سرور ناموفق بود${result.exceptionOrNull()?.message?.let { " • $it" } ?: ""}")
+                    }
+                }
+            }.start()
         }
 
         val trainMicPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -151,9 +184,46 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF101D28)) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Rounded.CloudDone, null, tint = if (serverReady) Color(0xFF6DD39E) else Color(0xFF6D8292))
+                                Text("۲. سرور هوشمند بیوک", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
+                            Text("فقط بار اول تنظیمش کن. بعد از اون فهم گفتار و تنظیمات حساسیت از سرور میاد.", color = Color(0xFF8EA2B2), fontSize = 12.sp, lineHeight = 18.sp)
+                            OutlinedTextField(
+                                value = serverUrl,
+                                onValueChange = { serverUrl = it },
+                                label = { Text("Server URL") },
+                                placeholder = { Text(BiyokServerSettings.DEFAULT_URL) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            OutlinedTextField(
+                                value = serverToken,
+                                onValueChange = { serverToken = it },
+                                label = { Text("App Token") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            Button(
+                                onClick = { saveAndTestServer() },
+                                enabled = !serverTesting,
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                shape = RoundedCornerShape(17.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (serverReady) Color(0xFF244D43) else Color(0xFF196FC3))
+                            ) { Text(if (serverTesting) "در حال تست…" else if (serverReady) "ذخیره و تست دوباره" else "ذخیره و تست سرور") }
+                        }
+                    }
+                }
+
+                item {
+                    Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF101D28)) {
                         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("۲. همیشه آماده‌اش کن", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Text("بعدش می‌تونی اپ رو ببندی و گوشی رو بذاری روی میز. بگو «بیوک»، beep رو که شنیدی یادآوری‌ات رو بگو.", color = Color(0xFF97A9B8), lineHeight = 20.sp, fontSize = 13.sp)
+                            Text("۳. همیشه آماده‌اش کن", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text("اپ رو ببند و گوشی رو بذار روی میز. بگو «بیوک»؛ بعد از beep بدون عجله جمله‌ات رو کامل بگو. بیوک تا سکوت واقعی صبر می‌کنه.", color = Color(0xFF97A9B8), lineHeight = 20.sp, fontSize = 13.sp)
                             Text("حساسیت بیوک", color = Color(0xFFBFD1DF), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             Slider(
                                 value = sensitivity,
@@ -162,15 +232,16 @@ class MainActivity : ComponentActivity() {
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("کمتر false positive", color = Color(0xFF647786), fontSize = 10.sp)
-                                Text("راحت‌تر بیدار می‌شه", color = Color(0xFF647786), fontSize = 10.sp)
+                                Text("از دور راحت‌تر بیدار می‌شه", color = Color(0xFF647786), fontSize = 10.sp)
                             }
                             Button(
                                 onClick = {
                                     if (samples < 3) vm.updateStatus("اول آموزش سه‌مرحله‌ای بیوک رو کامل کن")
+                                    else if (!serverClient.settings.isReady()) vm.updateStatus("اول سرور بیوک رو تنظیم کن")
                                     else if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startWake(samples)
                                     else wakeMicPermission.launch(Manifest.permission.RECORD_AUDIO)
                                 },
-                                enabled = samples >= 3,
+                                enabled = samples >= 3 && serverReady,
                                 modifier = Modifier.fillMaxWidth().height(54.dp),
                                 shape = RoundedCornerShape(18.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A8C64))
@@ -215,7 +286,10 @@ class MainActivity : ComponentActivity() {
                     if (Build.VERSION.SDK_INT >= 33) TextButton(onClick = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("فعال‌کردن نوتیفیکیشن") }
                     if (Build.VERSION.SDK_INT >= 31) TextButton(onClick = { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply { data = android.net.Uri.parse("package:$packageName") }) }) { Text("اجازه یادآوری دقیق") }
                     TextButton(onClick = { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }) { Text("تنظیم باتری برای پایداری پس‌زمینه") }
-                    Text("بیوک هیچ API Key، سرور یا مدل زبانی ندارد. متن یادآوری‌ها فقط روی همین گوشی ذخیره می‌شود.", color = Color(0xFF647786), fontSize = 11.sp, lineHeight = 16.sp)
+                    Text(
+                        "API Key فقط روی VPS می‌مونه. لیست یادآوری‌ها روی گوشی ذخیره می‌شه. صدای محیط به‌صورت ۲۴ساعته آپلود نمی‌شه؛ فقط wake candidate مشکوک برای تأیید و جمله‌ای که بعد از beep می‌گی به سرور فرستاده می‌شه.",
+                        color = Color(0xFF647786), fontSize = 11.sp, lineHeight = 16.sp
+                    )
                 }
             }
         }
@@ -237,6 +311,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startWake(samples: Int) {
         if (samples < 3) { vm.updateStatus("اول بیوک رو سه بار آموزش بده"); return }
+        if (!BiyokServerSettings(this).isReady()) { vm.updateStatus("اول سرور بیوک رو تنظیم کن"); return }
         ContextCompat.startForegroundService(this, Intent(this, BiyokWakeService::class.java))
         vm.updateStatus("بیوک فعال شد • حالا می‌تونی اپ رو ببندی")
     }
@@ -246,5 +321,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun BiyokTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF3B9CFF), secondary = Color(0xFF6DD39E), background = Color(0xFF071018), surface = Color(0xFF111D28)), content = content)
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            primary = Color(0xFF3B9CFF),
+            secondary = Color(0xFF6DD39E),
+            background = Color(0xFF071018),
+            surface = Color(0xFF111D28)
+        ),
+        content = content
+    )
 }
