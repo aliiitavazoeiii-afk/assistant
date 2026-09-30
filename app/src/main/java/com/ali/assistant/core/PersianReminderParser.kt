@@ -31,28 +31,13 @@ object PersianReminderParser {
         var m = clock?.groupValues?.getOrNull(2)?.toIntOrNull() ?: 0
         if (clock != null && lower.substring(clock.range.last.coerceAtMost(lower.lastIndex)).take(12).contains("نیم")) m = 30
 
-        if (at == null) {
-            val dayOffset = when {
-                lower.contains("پس فردا") -> 2L
-                lower.contains("فردا") -> 1L
-                else -> 0L
-            }
-            val dayPartHour = when {
-                lower.contains("صبح") -> 9
-                lower.contains("بعد از ظهر") -> 16
-                lower.contains("ظهر") -> 13
-                lower.contains("عصر") -> 18
-                lower.contains("شب") || lower.contains("امشب") -> 21
-                else -> null
-            }
-            val explicitDay = dayOffset > 0 || lower.contains("امروز") || lower.contains("امشب")
-            if (h != null || dayPartHour != null || explicitDay) {
-                val targetHour = (h ?: dayPartHour ?: 9).coerceIn(0, 23)
-                val targetMinute = m.coerceIn(0, 59)
-                var candidate = now.plusDays(dayOffset).withHour(targetHour).withMinute(targetMinute).withSecond(0).withNano(0)
-                if (dayOffset == 0L && candidate.isBefore(now)) candidate = candidate.plusDays(1)
-                at = candidate
-            }
+        val dayPartHour = when {
+            lower.contains("صبح") -> 9
+            lower.contains("بعد از ظهر") -> 16
+            lower.contains("ظهر") -> 13
+            lower.contains("عصر") -> 18
+            lower.contains("شب") || lower.contains("امشب") -> 21
+            else -> null
         }
 
         if (at == null) {
@@ -67,15 +52,28 @@ object PersianReminderParser {
             )
             val found = weekdays.entries.firstOrNull { lower.contains(it.key) }
             if (found != null) {
-                val targetHour = (h ?: when {
-                    lower.contains("صبح") -> 9
-                    lower.contains("بعد از ظهر") -> 16
-                    lower.contains("ظهر") -> 13
-                    lower.contains("عصر") -> 18
-                    lower.contains("شب") -> 21
-                    else -> 9
-                }).coerceIn(0, 23)
-                at = now.with(TemporalAdjusters.next(found.value)).withHour(targetHour).withMinute(m.coerceIn(0,59)).withSecond(0).withNano(0)
+                val targetHour = (h ?: dayPartHour ?: 9).coerceIn(0, 23)
+                at = now.with(TemporalAdjusters.next(found.value))
+                    .withHour(targetHour)
+                    .withMinute(m.coerceIn(0, 59))
+                    .withSecond(0)
+                    .withNano(0)
+            }
+        }
+
+        if (at == null) {
+            val dayOffset = when {
+                lower.contains("پس فردا") -> 2L
+                lower.contains("فردا") -> 1L
+                else -> 0L
+            }
+            val explicitDay = dayOffset > 0 || lower.contains("امروز") || lower.contains("امشب")
+            if (h != null || dayPartHour != null || explicitDay) {
+                val targetHour = (h ?: dayPartHour ?: 9).coerceIn(0, 23)
+                val targetMinute = m.coerceIn(0, 59)
+                var candidate = now.plusDays(dayOffset).withHour(targetHour).withMinute(targetMinute).withSecond(0).withNano(0)
+                if (dayOffset == 0L && candidate.isBefore(now)) candidate = candidate.plusDays(1)
+                at = candidate
             }
         }
 
