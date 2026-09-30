@@ -49,6 +49,11 @@ class BiyokWakeService : Service() {
         startWakeLoop()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!wakeRunning && !capturingCommand) startWakeLoop()
+        return START_STICKY
+    }
+
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL)
         .setSmallIcon(android.R.drawable.ic_btn_speak_now)
         .setContentTitle("بیوک")
