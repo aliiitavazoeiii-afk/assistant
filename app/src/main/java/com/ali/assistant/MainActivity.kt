@@ -43,7 +43,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DarkColorScheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
         var wakeWanted by remember { mutableStateOf(WakePreferences.isEnabled(context)) }
 
         val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) startWakeService()
+            if (granted) startWakeService() else WakePreferences.setEnabled(context, false)
         }
         val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
                 .fillMaxSize()
                 .background(background)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(18.dp))
             Header()
@@ -163,8 +163,8 @@ class MainActivity : ComponentActivity() {
             WakeCard(
                 stateText = when {
                     wake.enabled -> wake.message
-                    wakeWanted -> "بعد از ری‌استارت نیاز به فعال‌سازی دارد"
-                    else -> "خاموش • با یک لمس فعالش کن"
+                    wakeWanted -> "بعد از روشن‌شدن گوشی، یک بار دوباره فعالش کن"
+                    else -> "خاموش • برای شنیدن «بیوک» روشنش کن"
                 },
                 phase = wake.phase,
                 enabled = wake.enabled,
@@ -268,7 +268,7 @@ private fun Header() {
         Column(Modifier.weight(1f)) {
             Text("بیوک", fontSize = 38.sp, fontWeight = FontWeight.Black, color = Color.White)
             Text(
-                "هر چیزی یادت افتاد، همون لحظه بسپار به من.",
+                "هر چیزی یادت افتاد، همون لحظه بسپار به بیوک.",
                 color = Color(0xFFAAB7CC),
                 fontSize = 14.sp
             )
@@ -358,11 +358,34 @@ private fun QuickAdd(value: String, onValueChange: (String) -> Unit, onAdd: () -
 
 @Composable
 private fun FilterRow(filter: ReminderFilter, onChange: (ReminderFilter) -> Unit, doneCount: Int) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        FilterChip(selected = filter == ReminderFilter.OPEN, onClick = { onChange(ReminderFilter.OPEN) }, label = { Text("باز") })
-        FilterChip(selected = filter == ReminderFilter.INBOX, onClick = { onChange(ReminderFilter.INBOX) }, label = { Text("Inbox") })
-        FilterChip(selected = filter == ReminderFilter.SCHEDULED, onClick = { onChange(ReminderFilter.SCHEDULED) }, label = { Text("زمان‌دار") })
-        FilterChip(selected = filter == ReminderFilter.DONE, onClick = { onChange(ReminderFilter.DONE) }, label = { Text("انجام‌شده ${doneCount.toPersianDigits()}") })
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            FilterChip(
+                modifier = Modifier.weight(1f),
+                selected = filter == ReminderFilter.OPEN,
+                onClick = { onChange(ReminderFilter.OPEN) },
+                label = { Text("باز") }
+            )
+            FilterChip(
+                modifier = Modifier.weight(1f),
+                selected = filter == ReminderFilter.INBOX,
+                onClick = { onChange(ReminderFilter.INBOX) },
+                label = { Text("Inbox") }
+            )
+            FilterChip(
+                modifier = Modifier.weight(1f),
+                selected = filter == ReminderFilter.SCHEDULED,
+                onClick = { onChange(ReminderFilter.SCHEDULED) },
+                label = { Text("زمان‌دار") }
+            )
+        }
+        if (doneCount > 0 || filter == ReminderFilter.DONE) {
+            FilterChip(
+                selected = filter == ReminderFilter.DONE,
+                onClick = { onChange(ReminderFilter.DONE) },
+                label = { Text("انجام‌شده ${doneCount.toPersianDigits()}") }
+            )
+        }
     }
 }
 
@@ -431,19 +454,19 @@ private fun SetupRow(
     onBattery: () -> Unit,
 ) {
     Surface(shape = RoundedCornerShape(18.dp), color = Color(0x80121A29)) {
-        Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Settings, null, tint = Color(0xFF77869C), modifier = Modifier.size(17.dp))
                 Text("  تنظیم یک‌باره", color = Color(0xFF97A5B9), fontSize = 12.sp)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                if (!notificationReady) OutlinedButton(onClick = onNotifications) {
-                    Icon(Icons.Default.Notifications, null, modifier = Modifier.size(16.dp)); Text(" نوتیفیکیشن")
-                }
-                if (!exactReady) OutlinedButton(onClick = onExact) {
-                    Icon(Icons.Default.Schedule, null, modifier = Modifier.size(16.dp)); Text(" زمان دقیق")
-                }
-                OutlinedButton(onClick = onBattery) { Text("باتری: Unrestricted") }
+            if (!notificationReady) OutlinedButton(onClick = onNotifications, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Notifications, null, modifier = Modifier.size(16.dp)); Text(" اجازه نوتیفیکیشن")
+            }
+            if (!exactReady) OutlinedButton(onClick = onExact, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Schedule, null, modifier = Modifier.size(16.dp)); Text(" اجازه زمان‌بندی دقیق")
+            }
+            OutlinedButton(onClick = onBattery, modifier = Modifier.fillMaxWidth()) {
+                Text("برای پایداری Wake Word: باتری روی Unrestricted")
             }
         }
     }
@@ -455,7 +478,7 @@ private fun Int.toPersianDigits(): String = toString().map { c ->
     if (c in '0'..'9') "۰۱۲۳۴۵۶۷۸۹"[c - '0'] else c
 }.joinToString("")
 
-private val BiyokColors: DarkColorScheme = darkColorScheme(
+private val BiyokColors: ColorScheme = darkColorScheme(
     primary = Color(0xFF73E6C4),
     onPrimary = Color(0xFF06231C),
     secondary = Color(0xFF8EBBFF),
