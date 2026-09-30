@@ -1,78 +1,48 @@
-# Assistant
+# بیوک (Biyok)
 
-Ali's private Persian-first Android personal operations agent.
+یک اپ Android شخصی و مینیمال برای ثبت سریع یادآوری با صدا، بدون مدل زبانی، بدون API Key و بدون backend.
 
-## Repository layout
+## هدف
 
-- `app/` — Android app (Kotlin + Jetpack Compose)
-- `server/` — Node.js 22 OpenAI/control-plane backend
-- `node-agent/` — optional read-only Linux/VPN monitoring node
-- `docs/` — architecture, setup, operations runbook and continuation history
+بعد از راه‌اندازی یک‌باره:
 
-## v0.2 capabilities
+1. گوشی می‌تواند روی میز یا قفل باشد.
+2. کاربر می‌گوید «بیوک».
+3. اپ با یک beep کوتاه اعلام می‌کند که بیدار شده.
+4. کاربر یادآوری را می‌گوید؛ مثال: «یادم بنداز فردا ساعت ده پارچه سفارش بدم».
+5. متن روی خود گوشی ذخیره می‌شود.
+6. اگر زمان تشخیص داده شود، Android notification در همان زمان نمایش داده می‌شود.
+7. همه کارهای باز در UI بیوک دیده می‌شوند و می‌توان آن‌ها را انجام‌شده یا حذف کرد.
 
-### Android
+## معماری v1
 
-- Persian speech input and local spoken responses
-- local notes/ideas
-- exact alarms and spoken reminders
-- strict fresh-selfie alarm challenge
-- contacts, calls and SMS
-- recent notification access
-- location, Google Maps and installed-app launching
-- experimental wake word
-- explicit local confirmation before call/SMS execution
-- Android Keystore-backed app connection token
-- persistent session ID for multi-turn server context
+- **Local SQLite**: تمام یادآوری‌ها فقط روی دستگاه.
+- **Personal wake matching**: کاربر در اولین راه‌اندازی سه بار «بیوک» می‌گوید. اپ فقط ویژگی‌های صوتی را ذخیره می‌کند، نه فایل صوتی خام.
+- **Low-cost background listening**: شنود پس‌زمینه ابتدا فقط activity صوتی کوتاه را تشخیص می‌دهد و سپس الگوی آن را با سه نمونه شخصی مقایسه می‌کند. ASR دائمی وجود ندارد.
+- **One-shot Persian SpeechRecognizer**: فقط بعد از تشخیص wake word برای گرفتن متن همان فرمان فعال می‌شود.
+- **Deterministic Persian parser**: بدون LLM؛ پشتیبانی از زمان‌های رایج مثل امروز/فردا/پس‌فردا، صبح/ظهر/عصر/شب، ساعت، نیم ساعت بعد، N دقیقه/ساعت بعد و روزهای هفته.
+- **AlarmManager + notifications**: reminder زمان‌دار به notification تبدیل می‌شود.
 
-### Control plane
+## چیزهایی که عمداً وجود ندارند
 
-- OpenAI Responses API with server-side tool loop
-- durable private memory
-- tasks and measurable goals
-- named/allowlisted HTTP integrations for business systems
-- read-only monitoring nodes for server health/service logs
-- VPN-expiry adapter contract
-- deterministic automations and reports
-- optional renewal-message webhook with duplicate prevention
-- append-only audit events
+- OpenAI / LLM / TTS ابری
+- سرور یا domain
+- کنترل اپ‌های دیگر
+- تماس، SMS، Location، VPN یا automation
+- مکالمه‌ی صوتی با دستیار
 
-## Security model
+پوشه‌های قدیمی `server/` و `node-agent/` متعلق به نسل قبلی پروژه‌اند و در Biyok v1 توسط Android app استفاده نمی‌شوند. پس از تثبیت v1 می‌توان آن‌ها را حذف آرشیوی کرد.
 
-- OpenAI API key stays only on the central backend.
-- Monitoring nodes are read-only and expose no arbitrary shell endpoint.
-- Android calls/SMS require local confirmation.
-- Integration writes, automation changes and outbound messages are disabled by environment gates until explicitly enabled.
-- Retrieved notifications/SMS/logs/integration responses are treated as untrusted data, not model instructions.
-- Payment, banking, OTP/password entry and authentication remain manual.
+## حریم خصوصی
 
-## Install now, add OpenAI later
+- reminderها در `biyok.db` روی همان گوشی ذخیره می‌شوند.
+- نمونه‌های آموزش wake word به صورت feature template محلی ذخیره می‌شوند؛ فایل خام صدای آموزش نگه‌داری نمی‌شود.
+- هیچ API Key یا حساب آنلاین برای خود Biyok لازم نیست.
 
-The central backend can be installed before your OpenAI API balance/key is ready:
+## محدودیت Android
 
-```bash
-sudo bash server/install.sh
-curl http://127.0.0.1:8787/health
-```
+شنود wake word به foreground microphone service نیاز دارد؛ بنابراین Android هنگام فعال بودن بیوک indicator میکروفن و یک notification دائمی نمایش می‌دهد. این رفتار امنیتی سیستم‌عامل است. بعد از reboot ممکن است لازم باشد Biyok یک بار از داخل اپ فعال شود.
 
-The installer generates the separate `ASSISTANT_APP_TOKEN`. `OPENAI_API_KEY` can remain empty; AI requests return a clear 503 until it is added.
+## Branch فعلی
 
-When the API key is ready:
-
-```bash
-sudo nano server/.env
-# OPENAI_API_KEY=sk-...
-sudo systemctl restart assistant
-```
-
-Optional read-only monitoring node:
-
-```bash
-sudo bash node-agent/install.sh
-```
-
-Read `docs/OPS_CONTROL_PLANE.md` before exposing any node remotely.
-
-## Model defaults
-
-v0.2 defaults to `gpt-5.6-luna` with `low` reasoning effort for low-cost routine operation. Both are configurable in `server/.env`.
+توسعه‌ی بازطراحی روی `biyok-reminders-v1` انجام می‌شود تا قبل از جایگزین کردن `main`، Android CI و تست روی گوشی تأیید شود.
