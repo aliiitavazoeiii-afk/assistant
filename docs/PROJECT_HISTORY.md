@@ -1,41 +1,76 @@
-# Assistant Project History / Continuation
+# Biyok Project History / Continuation
 
-## Purpose
+## Authority rule
 
-Persistent continuation file for `aliiitavazoeiii-afk/assistant`. Before future changes, re-fetch the current branch/HEAD and read this file plus `docs/ARCHITECTURE.md` and `docs/OPS_CONTROL_PLANE.md`. GitHub state is authoritative; this file records design decisions, not live deployment state.
+Before future changes, re-fetch current `main` HEAD and relevant files. GitHub state is authoritative. Do not infer live server deployment from this file.
 
-## v0.1 baseline
+## Old Assistant generations
 
-Android Kotlin/Compose Persian personal assistant with Node backend and OpenAI Responses API. Device tools: local notes, alarms/reminders, strict selfie alarm, contacts/calls/SMS, notifications, location/maps, app launching, SpeechRecognizer/TTS and experimental wake word. OpenAI key stays server-side.
+The repository originally contained a broad Persian Android assistant plus a Node/OpenAI control plane with phone tools, memory, monitoring nodes and integrations. That architecture was intentionally abandoned for the Android product because the user wanted a much smaller reminder-only workflow.
 
-## v0.2 control-plane work
+## Biyok v1 — local reminder app
 
-Development branch: `assistant-v0.2-control-plane`, created from main commit `70f4de78badf110152cd35f6398cf6bc34d3ae94`.
+Biyok was rebuilt around one job: hands-free reminder capture.
 
-Decisions and additions:
+- Android package: `com.ali.biyok`.
+- Local SQLite reminder store and AlarmManager notifications.
+- User enrolls the word «بیوک» three times; only extracted feature templates are stored, not raw enrollment audio.
+- Foreground microphone service performs adaptive local VAD and feature matching.
+- v1 used Android `SpeechRecognizer` after wake.
+- Deterministic Persian parser handled common relative/date/time phrases.
+- v1 passed Android CI and real-device setup/testing.
 
-- Central backend remains the only OpenAI brain; never copy the OpenAI key to managed servers.
-- Android now persists a private session ID and the backend maps it to `previous_response_id` for real multi-turn context.
-- Durable server-side memory, tasks and goals are separate from Android-local notes.
-- Android app connection token is encrypted with Android Keystore; legacy plaintext token migrates on read.
-- Android calls/SMS require an explicit local confirmation dialog before execution.
-- Retrieved SMS, notifications, logs, memories and integration output are treated as untrusted data, not instructions.
-- Backend supports named integrations, deterministic automations, reports and audit logs.
-- Linux monitoring nodes are read-only and HMAC-authenticated. There is deliberately no arbitrary shell or generic write endpoint.
-- Service status/log names are allowlisted per node.
-- VPN expiry uses an adapter contract. Generic `vpn_json.py` is included; panel-specific adapters require the real panel/API/schema.
-- VPN expiry uses a configured local calendar timezone and includes expiries that happened earlier on the same day.
-- Automated outbound renewal messages require explicit environment enablement, a message webhook, and are deduplicated by rule/user/expiry.
-- External service write operations must be explicitly registered and remain gated by `ASSISTANT_ALLOW_INTEGRATION_WRITES`.
-- Automation changes from the model remain gated by `ASSISTANT_ALLOW_AUTOMATION_CHANGES`.
-- v0.2 default routine model is `gpt-5.6-luna` with `low` reasoning effort, configurable by environment.
-- Backend can be fully installed with an empty `OPENAI_API_KEY`; AI turns return 503 until the key is added.
+Real-device feedback on v1:
 
-## Intentional boundaries / future adapters
+- wake word required speaking too close to the phone;
+- Android `SpeechRecognizer` could stop in the middle of a natural utterance/pause;
+- user wanted future behavior/tuning to be server-driven instead of rebuilding/reinstalling for every adjustment.
 
-- No general cross-app Accessibility controller yet.
-- No banking/payment/authentication automation.
-- No arbitrary remote Linux command execution.
-- No panel-specific VPN adapter until the exact VPN panel/data source is known.
-- No hard-coded Darma/expense API endpoints until those services expose stable assistant endpoints.
-- Voice remains Android SpeechRecognizer + local TTS; Realtime voice is a later layer.
+## Biyok v2 — hybrid server brain
+
+Development branch: `biyok-server-brain-v2`, based on main commit `58b58e851b7c5b3346d66c8603e95828c384506f`.
+
+Design decisions:
+
+- Wake listening remains local so ambient audio is not streamed continuously.
+- Local wake VAD is intentionally more permissive so speech can be captured from farther away.
+- Strong local wake matches are accepted immediately.
+- Borderline wake candidates may be sent to the VPS for OpenAI transcription verification, reducing false positives while allowing looser local thresholds.
+- Android `SpeechRecognizer` is removed from the command path.
+- After the beep, Android records PCM directly until a configurable continuous-silence window is reached. This gives Biyok control over endpointing instead of Android deciding that speech ended.
+- Command audio is sent to the VPS. The server uses `gpt-transcribe` for transcription and a configurable text model with Responses API Structured Outputs to resolve intent/time.
+- The server returns only structured actions (`create_reminder`, `list_reminders`, `unknown`); reminders still live in the Android SQLite database.
+- OpenAI API key remains only on the VPS.
+- Authenticated Biyok requests reuse `ASSISTANT_APP_TOKEN` via `X-Assistant-Token`.
+- Android defaults to `https://assistant.filmjadiid.ir`; server URL/token are entered once in the UI and retained locally.
+- Remote tuning is read from `server/config/biyok.json`. Android refreshes config while the service is alive, so wake/VAD changes do not require a new APK.
+
+### v2 endpoints
+
+- `GET /health`
+- `GET /v1/biyok/config` (public non-secret tuning only)
+- `GET /v1/biyok/ping` (authenticated setup test)
+- `POST /v1/biyok/wake-check` (authenticated bounded wake audio)
+- `POST /v1/biyok/command` (authenticated bounded command audio)
+
+### Remote-tunable settings
+
+`server/config/biyok.json` controls:
+
+- local strong wake score;
+- maximum score eligible for server verification;
+- wake VAD RMS floor/noise multipliers;
+- wake silence and candidate duration;
+- command VAD RMS floor/noise multipliers;
+- command start timeout, end-of-speech silence, max duration and pre-roll.
+
+### Privacy boundary
+
+- No continuous cloud microphone streaming.
+- Reminder database stays on-device.
+- Wake enrollment raw audio is not persisted.
+- Only borderline wake candidates and post-beep command audio can be uploaded to the server.
+
+## Deployment rule
+
+The currently installed v1 debug APK may have a CI debug signature that is not guaranteed to remain stable across future builds. Moving to a stable release signing key is still recommended before long-term native APK update workflows. Most v2 behavior changes should instead be done through the VPS config/backend so no Android update is required.
