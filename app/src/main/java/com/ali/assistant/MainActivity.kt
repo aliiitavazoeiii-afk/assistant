@@ -1,7 +1,6 @@
 package com.ali.assistant
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -12,167 +11,154 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.ali.assistant.ui.AssistantViewModel
-import com.ali.assistant.voice.SpeechInputManager
-import com.ali.assistant.wake.HotwordService
+import com.ali.assistant.core.ReminderItem
+import com.ali.assistant.wake.BiyokWakeService
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
-    companion object {
-        private const val MIC_REQUEST_CODE = 2001
-        private const val MIC_WAKE_REQUEST_CODE = 2002
-    }
-
-    private val vm: AssistantViewModel by viewModels()
-    private lateinit var speech: SpeechInputManager
+    private val vm: BiyokViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        speech = SpeechInputManager(this)
-        setContent { MaterialTheme { AssistantScreen(vm) } }
-        handleIntent(intent)
+        setContent { BiyokTheme { BiyokScreen(vm) } }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleIntent(intent)
-    }
+    override fun onResume() { super.onResume(); vm.refresh() }
 
-    private fun handleIntent(intent: Intent) {
-        intent.getStringExtra("hotword_command")?.takeIf { it.isNotBlank() }?.let { vm.submit(it) }
-        if (intent.getBooleanExtra("auto_listen", false)) window.decorView.postDelayed({ beginListening() }, 450)
-        intent.removeExtra("hotword_command")
-        intent.removeExtra("auto_listen")
-    }
-
-    private fun beginListening() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            vm.setListeningStatus("برای صحبت، اجازه میکروفن لازم است")
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST_CODE)
-            return
+    @Composable
+    private fun BiyokScreen(vm: BiyokViewModel) {
+        var text by remember { mutableStateOf("") }
+        val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) startWake() else vm.setStatus("اجازه میکروفن برای بیوک لازم است")
         }
-        speech.listen(onState = vm::setListeningStatus, onResult = vm::submit, onError = vm::setListeningStatus)
-    }
+        val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
-    private fun startWakeWord() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            vm.setListeningStatus("برای بیوک، اجازه میکروفن لازم است")
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), MIC_WAKE_REQUEST_CODE)
-            return
-        }
-        ContextCompat.startForegroundService(this, Intent(this, HotwordService::class.java))
-        vm.setListeningStatus("بیوک روشن شد؛ می‌تونی اپ رو ببندی")
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when (requestCode) {
-            MIC_REQUEST_CODE -> {
-                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) beginListening()
-                else vm.setListeningStatus("اجازه میکروفن داده نشده؛ از Settings > Apps > Assistant > Permissions فعالش کن")
-            }
-            MIC_WAKE_REQUEST_CODE -> {
-                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startWakeWord()
-                else vm.setListeningStatus("بدون اجازه میکروفن، بیوک نمی‌تونه در پس‌زمینه گوش بده")
+        val bg = Brush.verticalGradient(listOf(Color(0xFF071018), Color(0xFF0C1823), Color(0xFF111827)))
+        Box(Modifier.fillMaxSize().background(bg)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(18.dp, 26.dp, 18.dp, 42.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item {
+                    Text("بیوک", fontSize = 42.sp, fontWeight = FontWeight.Black, color = Color.White)
+                    Text("هر چیزی یادت افتاد، فقط بگو.", color = Color(0xFF96A7B7), fontSize = 16.sp)
+                }
+                item {
+                    Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF122536), tonalElevation = 4.dp) {
+                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFF1F6FEB)) {
+                                    Icon(Icons.Rounded.Mic, null, tint = Color.White, modifier = Modifier.padding(11.dp))
+                                }
+                                Column {
+                                    Text("Wake word: بیوک", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                    Text(vm.status, color = Color(0xFF8FB8D8), fontSize = 13.sp)
+                                }
+                            }
+                            Button(
+                                onClick = {
+                                    if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startWake()
+                                    else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                },
+                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                shape = RoundedCornerShape(18.dp)
+                            ) { Text("فعال‌کردن بیوک") }
+                            Text("بعد از فعال‌سازی می‌تونی صفحه را ببندی و گوشی را روی میز بگذاری. با شنیدن «بیوک» یک صدای کوتاه می‌شنوی و بعد یادآوری‌ات را می‌گویی.", color = Color(0xFF9EADBA), fontSize = 13.sp)
+                        }
+                    }
+                }
+                item {
+                    Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFF101C27)) {
+                        Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = text,
+                                onValueChange = { text = it },
+                                placeholder = { Text("مثلاً: فردا ساعت ۱۰ پارچه سفارش بدم") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                minLines = 2
+                            )
+                            Button(
+                                onClick = { vm.add(text); text = "" },
+                                enabled = text.isNotBlank(),
+                                modifier = Modifier.align(Alignment.End),
+                                shape = RoundedCornerShape(16.dp)
+                            ) { Text("ذخیره") }
+                        }
+                    }
+                }
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("کارهایی که گفتی", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFF1A2A38)) {
+                            Text("${vm.items.size}", color = Color(0xFF72C3FF), modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                if (vm.items.isEmpty()) item {
+                    Surface(shape = RoundedCornerShape(24.dp), color = Color(0xFF101C27)) {
+                        Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.NotificationsActive, null, tint = Color(0xFF607789), modifier = Modifier.size(38.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text("فعلاً چیزی ثبت نکردی", color = Color(0xFF9EADBA))
+                        }
+                    }
+                } else items(vm.items, key = { it.id }) { ReminderCard(it, onDone = { vm.done(it.id) }, onDelete = { vm.delete(it.id) }) }
+                item {
+                    if (Build.VERSION.SDK_INT >= 33) TextButton(onClick = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("اجازه نوتیفیکیشن") }
+                    if (Build.VERSION.SDK_INT >= 31) TextButton(onClick = { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply { data = android.net.Uri.parse("package:$packageName") }) }) { Text("اجازه یادآوری دقیق") }
+                }
             }
         }
     }
 
     @Composable
-    private fun AssistantScreen(vm: AssistantViewModel) {
-        var command by remember { mutableStateOf("") }
-        var url by remember { mutableStateOf(vm.serverUrl) }
-        var appToken by remember { mutableStateOf(vm.appToken) }
-        val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
-
-        vm.pendingConfirmation?.let { pending ->
-            AlertDialog(
-                onDismissRequest = { },
-                title = { Text(pending.title) },
-                text = { Text(pending.detail) },
-                confirmButton = { Button(onClick = { vm.resolveConfirmation(true) }) { Text("تأیید و اجرا") } },
-                dismissButton = { TextButton(onClick = { vm.resolveConfirmation(false) }) { Text("لغو") } }
-            )
-        }
-
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Assistant", style = MaterialTheme.typography.headlineLarge)
-            Text("v0.2.3 • ${vm.status}", style = MaterialTheme.typography.bodyMedium)
-            OutlinedTextField(value = command, onValueChange = { command = it }, label = { Text("دستور") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { beginListening() }, enabled = !vm.busy) { Icon(Icons.Default.Mic, contentDescription = null); Text(" صحبت") }
-                Button(onClick = { vm.submit(command); command = "" }, enabled = !vm.busy && command.isNotBlank()) { Icon(Icons.Default.Send, contentDescription = null); Text(" اجرا") }
+    private fun ReminderCard(item: ReminderItem, onDone: () -> Unit, onDelete: () -> Unit) {
+        Surface(shape = RoundedCornerShape(22.dp), color = Color(0xFF13212D)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(item.text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(item.remindAt?.let(::formatTime) ?: "بدون زمان • در لیست نگه داشته می‌شود", color = if (item.remindAt == null) Color(0xFF718495) else Color(0xFF69B7F5), fontSize = 12.sp)
+                }
+                IconButton(onClick = onDone) { Icon(Icons.Rounded.Check, "انجام شد", tint = Color(0xFF6DD39E)) }
+                IconButton(onClick = onDelete) { Icon(Icons.Rounded.DeleteOutline, "حذف", tint = Color(0xFFEB7C7C)) }
             }
-            if (vm.lastUserText.isNotBlank()) Text("تو: ${vm.lastUserText}")
-            if (vm.lastAssistantText.isNotBlank()) Text("دستیار: ${vm.lastAssistantText}")
-            Text("صدای پاسخ با voice ابری تولید می‌شود؛ اگر در دسترس نباشد، اپ از صدای محلی گوشی استفاده می‌کند.", style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
-            Text("تنظیمات", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("Server URL (HTTPS برای استفاده واقعی)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button(onClick = { vm.saveServerUrl(url) }) { Text("ذخیره آدرس سرور") }
-            OutlinedTextField(value = appToken, onValueChange = { appToken = it }, label = { Text("App connection token") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button(onClick = { vm.saveAppToken(appToken) }) { Text("ذخیره امن توکن اتصال") }
-            Button(onClick = { permissionLauncher.launch(runtimePermissions()) }) { Text("دادن Permissionهای پایه") }
-            Button(onClick = { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("فعال‌کردن Notification Access") }
-            Button(onClick = { requestExactAlarmAccess() }) { Text("اجازه Exact Alarm") }
-
-            Text("بیوک", style = MaterialTheme.typography.titleLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { startWakeWord() }) { Text("روشن‌کردن بیوک") }
-                Button(onClick = {
-                    stopService(Intent(this@MainActivity, HotwordService::class.java))
-                    vm.setListeningStatus("بیوک خاموش شد")
-                }) { Text("خاموش‌کردن") }
-            }
-            Text("بعد از روشن‌کردن، می‌تونی اپ رو ببندی یا گوشی رو قفل کنی و بگی «بیوک». علامت میکروفن Android هنگام گوش‌دادن دائمی طبیعی و اجباری است. بعد از ری‌استارت گوشی، بیوک را یک بار دوباره روشن کن.", style = MaterialTheme.typography.bodySmall)
-            Text("تماس و SMS قبل از اجرا روی خود گوشی تأیید می‌خواهند.")
         }
     }
 
-    private fun runtimePermissions(): Array<String> = buildList {
-        add(Manifest.permission.RECORD_AUDIO)
-        add(Manifest.permission.CAMERA)
-        add(Manifest.permission.READ_CONTACTS)
-        add(Manifest.permission.CALL_PHONE)
-        add(Manifest.permission.READ_SMS)
-        add(Manifest.permission.SEND_SMS)
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (Build.VERSION.SDK_INT >= 33) {
-            add(Manifest.permission.POST_NOTIFICATIONS)
-            add(Manifest.permission.READ_MEDIA_AUDIO)
-        } else add(Manifest.permission.READ_EXTERNAL_STORAGE)
-    }.toTypedArray()
-
-    private fun requestExactAlarmAccess() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val am = getSystemService(AlarmManager::class.java)
-            if (!am.canScheduleExactAlarms()) startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                data = android.net.Uri.parse("package:$packageName")
-            })
-        }
+    private fun startWake() {
+        ContextCompat.startForegroundService(this, Intent(this, BiyokWakeService::class.java))
+        vm.setStatus("بیوک در پس‌زمینه فعال شد")
     }
 
-    override fun onDestroy() {
-        speech.stop()
-        super.onDestroy()
-    }
+    private fun formatTime(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE d MMM • HH:mm", Locale("fa", "IR")))
+}
+
+@Composable
+private fun BiyokTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF3B9CFF), secondary = Color(0xFF6DD39E), surface = Color(0xFF111D28)), content = content)
 }
