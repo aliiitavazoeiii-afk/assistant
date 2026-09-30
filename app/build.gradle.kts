@@ -11,8 +11,8 @@ android {
         applicationId = "com.ali.assistant"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.0.0"
+        versionCode = 11
+        versionName = "1.0.1"
         vectorDrawables.useSupportLibrary = true
     }
     buildFeatures { compose = true }
@@ -32,6 +32,5 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("com.github.msnilsen:openwakeword-android:0.1.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
