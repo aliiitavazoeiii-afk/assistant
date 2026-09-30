@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "wake": {
+    "localStrongScore": 0.64,
+    "serverVerifyMaxScore": 1.08,
+    "minStartRms": 95.0,
+    "startNoiseMultiplier": 1.55,
+    "minEndRms": 75.0,
+    "endNoiseMultiplier": 1.22,
+    "silenceMs": 260,
+    "maxSegmentMs": 2800,
+    "serverVerification": true
+  },
+  "command": {
+    "minStartRms": 85.0,
+    "startNoiseMultiplier": 1.45,
+    "minEndRms": 70.0,
+    "endNoiseMultiplier": 1.18,
+    "startTimeoutMs": 8000,
+    "silenceMs": 2200,
+    "maxMs": 30000,
+    "preRollMs": 260
+  }
+}
