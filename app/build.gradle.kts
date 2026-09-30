@@ -8,7 +8,7 @@ android {
     namespace = "com.ali.assistant"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.ali.assistant"
+        applicationId = "com.ali.biyok"
         minSdk = 29
         targetSdk = 35
         versionCode = 11
