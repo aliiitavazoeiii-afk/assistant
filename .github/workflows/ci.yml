@@ -1,32 +1,10 @@
-name: CI
+name: Biyok Android CI
 
 on:
   push:
   pull_request:
 
 jobs:
-  server:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Syntax check Node control plane
-        run: find server -name '*.mjs' -print0 | xargs -0 -n1 node --check
-      - name: Shell syntax
-        run: bash -n server/install.sh node-agent/install.sh
-
-  node-agent:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - name: Python syntax
-        run: python -m py_compile node-agent/agent.py node-agent/adapters/vpn_json.py
-
   android:
     runs-on: ubuntu-latest
     steps:
@@ -38,12 +16,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
       - name: Assemble debug
         run: gradle :app:assembleDebug --stacktrace
-      - name: Publish debug APK
+      - name: Publish Biyok APK
         uses: actions/upload-artifact@v4
         with:
-          name: assistant-debug-apk
+          name: biyok-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
