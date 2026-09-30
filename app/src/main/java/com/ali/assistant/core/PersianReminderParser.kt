@@ -39,8 +39,8 @@ object PersianReminderParser {
             }
             val dayPartHour = when {
                 lower.contains("صبح") -> 9
-                lower.contains("ظهر") -> 13
                 lower.contains("بعد از ظهر") -> 16
+                lower.contains("ظهر") -> 13
                 lower.contains("عصر") -> 18
                 lower.contains("شب") || lower.contains("امشب") -> 21
                 else -> null
@@ -56,26 +56,26 @@ object PersianReminderParser {
         }
 
         if (at == null) {
-            val weekdays = mapOf(
-                "شنبه" to DayOfWeek.SATURDAY,
+            val weekdays = linkedMapOf(
                 "یکشنبه" to DayOfWeek.SUNDAY,
                 "دوشنبه" to DayOfWeek.MONDAY,
                 "سه شنبه" to DayOfWeek.TUESDAY,
                 "چهارشنبه" to DayOfWeek.WEDNESDAY,
                 "پنجشنبه" to DayOfWeek.THURSDAY,
-                "جمعه" to DayOfWeek.FRIDAY
+                "جمعه" to DayOfWeek.FRIDAY,
+                "شنبه" to DayOfWeek.SATURDAY
             )
             val found = weekdays.entries.firstOrNull { lower.contains(it.key) }
             if (found != null) {
                 val targetHour = (h ?: when {
                     lower.contains("صبح") -> 9
+                    lower.contains("بعد از ظهر") -> 16
                     lower.contains("ظهر") -> 13
                     lower.contains("عصر") -> 18
                     lower.contains("شب") -> 21
                     else -> 9
                 }).coerceIn(0, 23)
-                var candidate = now.with(TemporalAdjusters.next(found.value)).withHour(targetHour).withMinute(m.coerceIn(0,59)).withSecond(0).withNano(0)
-                at = candidate
+                at = now.with(TemporalAdjusters.next(found.value)).withHour(targetHour).withMinute(m.coerceIn(0,59)).withSecond(0).withNano(0)
             }
         }
 
@@ -86,7 +86,7 @@ object PersianReminderParser {
     private fun cleanReminderText(s: String): String = s
         .replace(Regex("(نیم ساعت|\\d{1,3}\\s*(?:دقیقه|ساعت))\\s*(?:دیگه|دیگر|بعد)"), "")
         .replace(Regex("\\b(?:امروز|فردا|پس فردا|امشب|صبح|ظهر|بعد از ظهر|عصر|شب)\\b"), "")
-        .replace(Regex("\\b(?:شنبه|یکشنبه|دوشنبه|سه شنبه|چهارشنبه|پنجشنبه|جمعه)\\b"), "")
+        .replace(Regex("\\b(?:یکشنبه|دوشنبه|سه شنبه|چهارشنبه|پنجشنبه|جمعه|شنبه)\\b"), "")
         .replace(Regex("ساعت\\s*\\d{1,2}(?:\\s*[:و]\\s*\\d{1,2})?(?:\\s*و?\\s*نیم)?"), "")
         .replace(Regex("(?<!\\d)\\d{1,2}:\\d{1,2}(?!\\d)"), "")
         .replace(Regex("\\s+"), " ")
@@ -110,6 +110,9 @@ object PersianReminderParser {
 
     private fun normalizeNumberWords(s: String): String {
         var out = s
+            .replace(Regex("سه\\s+شنبه"), "__TUESDAY__")
+            .replace(Regex("پنج\\s+شنبه"), "__THURSDAY__")
+            .replace(Regex("یک\\s+شنبه"), "__SUNDAY__")
         val words = linkedMapOf(
             "بیست و سه" to "23", "بیست و دو" to "22", "بیست و یک" to "21",
             "بیست" to "20", "نوزده" to "19", "هجده" to "18", "هفده" to "17", "شانزده" to "16", "پانزده" to "15", "چهارده" to "14", "سیزده" to "13", "دوازده" to "12", "یازده" to "11", "ده" to "10",
@@ -117,5 +120,8 @@ object PersianReminderParser {
         )
         for ((word, number) in words) out = out.replace(Regex("(?<![\\p{L}])${Regex.escape(word)}(?![\\p{L}])"), number)
         return out
+            .replace("__TUESDAY__", "سه شنبه")
+            .replace("__THURSDAY__", "پنجشنبه")
+            .replace("__SUNDAY__", "یکشنبه")
     }
 }
