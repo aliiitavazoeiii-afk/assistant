@@ -2,6 +2,7 @@ package com.ali.assistant.core
 
 import org.junit.Assert.*
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -28,6 +29,14 @@ class PersianReminderParserTest {
         val p = PersianReminderParser.parse("نیم ساعت دیگه آب دستگاه رو چک کنم", now)
         assertEquals("آب دستگاه رو چک کنم", p.text)
         assertEquals(now.plusMinutes(30).toInstant().toEpochMilli(), p.remindAt)
+    }
+
+    @Test fun parsesSeparatedWeekdayName() {
+        val p = PersianReminderParser.parse("سه شنبه عصر سفارش نخ رو چک کنم", now)
+        assertEquals("سفارش نخ رو چک کنم", p.text)
+        val at = ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(p.remindAt!!), zone)
+        assertEquals(DayOfWeek.TUESDAY, at.dayOfWeek)
+        assertEquals(18, at.hour)
     }
 
     @Test fun noTimeStaysInListWithoutAlarm() {
