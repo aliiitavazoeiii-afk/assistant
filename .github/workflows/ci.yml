@@ -34,8 +34,10 @@ jobs:
           WORDS="$(find app/src/main/assets/vosk-fa -name words.txt | head -n1 || true)"
           if [ -n "$WORDS" ]; then
             echo "Wake vocabulary probes:"
-            grep -E '^(بیوک|بویوک|بؤیوک|بیوگ|بیاک|بیوک) ' "$WORDS" || true
+            grep -E '^(بیوک|بویوک|بؤیوک|بیوگ|بیاک|بیاوک) ' "$WORDS" || true
           fi
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
       - name: Assemble debug
         run: gradle :app:assembleDebug --stacktrace
       - name: Publish debug APK
