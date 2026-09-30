@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
     private fun BiyokScreen(vm: BiyokViewModel) {
         var text by remember { mutableStateOf("") }
         val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) startWake() else vm.setStatus("اجازه میکروفن برای بیوک لازم است")
+            if (granted) startWake() else vm.updateStatus("اجازه میکروفن برای بیوک لازم است")
         }
         val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startWake() {
         ContextCompat.startForegroundService(this, Intent(this, BiyokWakeService::class.java))
-        vm.setStatus("بیوک در پس‌زمینه فعال شد")
+        vm.updateStatus("بیوک در پس‌زمینه فعال شد")
     }
 
     private fun formatTime(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE d MMM • HH:mm", Locale("fa", "IR")))
