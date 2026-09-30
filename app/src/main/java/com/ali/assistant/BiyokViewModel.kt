@@ -25,5 +25,5 @@ class BiyokViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun done(id: Long) { store.complete(id); refresh() }
     fun delete(id: Long) { store.delete(id); refresh() }
-    fun setStatus(v: String) { status = v }
+    fun updateStatus(v: String) { status = v }
 }
