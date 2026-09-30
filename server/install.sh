@@ -15,19 +15,14 @@ if [[ ! -f "$SERVER/.env" ]]; then
   sed -i "s/^ASSISTANT_APP_TOKEN=.*/ASSISTANT_APP_TOKEN=$TOKEN/" "$SERVER/.env"
   echo "Generated ASSISTANT_APP_TOKEN: $TOKEN"
 else
-  echo "Keeping existing server/.env"
+  echo "Keeping existing server/.env and token"
 fi
-[[ -f "$SERVER/config/nodes.json" ]] || cp "$SERVER/config/nodes.example.json" "$SERVER/config/nodes.json"
-[[ -f "$SERVER/config/integrations.json" ]] || cp "$SERVER/config/integrations.example.json" "$SERVER/config/integrations.json"
-mkdir -p "$SERVER/data"
-[[ -f "$SERVER/data/automations.json" ]] || cp "$SERVER/config/automations.example.json" "$SERVER/data/automations.json"
 chown assistant:assistant "$SERVER/.env"
-chown -R assistant:assistant "$SERVER/data"
 chmod 600 "$SERVER/.env"
 
 cat >/etc/systemd/system/assistant.service <<UNIT
 [Unit]
-Description=Ali Personal Assistant Control Plane
+Description=Biyok Voice Brain
 After=network-online.target
 Wants=network-online.target
 
@@ -42,7 +37,6 @@ RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=$SERVER/data
 
 [Install]
 WantedBy=multi-user.target
@@ -53,6 +47,7 @@ systemctl enable --now assistant
 sleep 1
 curl -fsS http://127.0.0.1:8787/health || { systemctl status assistant --no-pager; exit 1; }
 echo
-echo "Assistant backend installed. OPENAI_API_KEY may remain empty until billing is active."
-echo "Edit: $SERVER/.env"
-echo "Then: systemctl restart assistant"
+echo "Biyok backend installed."
+echo "OpenAI key: $SERVER/.env"
+echo "Remote tuning: $SERVER/config/biyok.json"
+echo "Restart after env changes: systemctl restart assistant"
